@@ -78,7 +78,7 @@ export class NextLessonAgent {
     if (!match) return null;
 
     const lessonNum = parseInt(match[1], 10);
-    const prefix = completedLesson.replace(/Lesson \d+/, '').trim().replace(/ - $/, '');
+    const prefix = completedLesson.replace(/ - Lesson \d+/, '').trim();
 
     const maxLessons: Record<string, number> = {
       'Private Pilot': 20,
