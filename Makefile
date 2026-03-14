@@ -15,7 +15,7 @@ test:
 	cd backend && npm test
 
 seed:
-	cd backend && npm run seed
+	cd backend && npm run migrate && cd ../backend && npm run seed
 
 migrate:
 	cd backend && npm run migrate
