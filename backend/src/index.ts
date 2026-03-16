@@ -19,7 +19,22 @@ const publicDir = path.join(__dirname, '..', 'public');
 export const app = express();
 
 // Middleware
-app.use(cors({ origin: config.corsOrigin, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    const allowed = [
+      config.corsOrigin,
+      'https://fsp-frontend-production.up.railway.app',
+      'http://localhost:5001',
+      'http://localhost:3000',
+    ].filter(Boolean);
+    if (!origin || allowed.some(o => origin.startsWith(o as string))) {
+      callback(null, true);
+    } else {
+      callback(null, true); // allow all for now — tighten in production
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // Health check - no auth required
