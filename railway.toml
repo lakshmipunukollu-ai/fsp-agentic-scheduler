@@ -1,5 +1,13 @@
+# Railway deployment: single Node service (API + static frontend)
+# Add a Postgres plugin in the dashboard and link DATABASE_URL to this service.
+
 [build]
-builder = "NIXPACKS"
+builder = "nixpacks"
+buildCommand = "npm run build"
 
 [deploy]
-startCommand = "npm run build && npm start"
+startCommand = "npm run start"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

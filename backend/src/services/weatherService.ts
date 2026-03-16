@@ -30,11 +30,11 @@ export async function assessWeatherForLesson(
       return fallback('Weather API unavailable');
     }
 
-    const data = await res.json();
+    const data = await res.json() as any;
     const targetDate = new Date(dateStr).toISOString().split('T')[0];
 
     // Find forecast entry closest to the lesson date at 10am
-    const forecasts = data.list as { dt: number; weather: { id: number; description: string }[]; main: { temp: number }; wind: { speed: number }; visibility?: number; clouds?: { all: number } }[];
+    const forecasts = (data.list || []) as any[];
     const match = forecasts.find((f: { dt: number }) => {
       const fDate = new Date(f.dt * 1000).toISOString().split('T')[0];
       return fDate === targetDate;

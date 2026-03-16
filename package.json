@@ -1,0 +1,12 @@
+{
+  "name": "fsp-agentic-scheduler",
+  "private": true,
+  "description": "FSP Agentic Scheduler — full-stack app (frontend + backend)",
+  "scripts": {
+    "build": "bash scripts/build-for-render.sh",
+    "start": "cd backend && node dist/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,30 @@
+# Render Blueprint: FSP Agentic Scheduler
+# Deploy: connect this repo in Render Dashboard and apply the blueprint.
+# See DEPLOY.md for env vars and post-deploy steps (migrate, seed).
+
+databases:
+  - name: fsp-scheduler-db
+    plan: free
+    databaseName: fsp_scheduler
+
+services:
+  - type: web
+    name: fsp-agentic-scheduler
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: chmod +x scripts/build-for-render.sh && ./scripts/build-for-render.sh
+    startCommand: cd backend && node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fsp-scheduler-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        sync: false
+        # Set in Dashboard to your app URL, e.g. https://fsp-agentic-scheduler.onrender.com
