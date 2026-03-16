@@ -7,6 +7,8 @@ import suggestionRoutes from './routes/suggestions';
 import operatorRoutes from './routes/operators';
 import auditLogRoutes from './routes/auditLog';
 import dashboardRoutes from './routes/dashboard';
+import agentRoutes from './routes/agent';
+import studentRoutes from './routes/students';
 import webhookRoutes from './routes/webhooks';
 
 export const app = express();
@@ -30,6 +32,8 @@ app.use('/api/suggestions', suggestionRoutes);
 app.use('/api/operators', operatorRoutes);
 app.use('/api/audit-log', auditLogRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/agent', agentRoutes);
+app.use('/api/students', studentRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
 // Error handler

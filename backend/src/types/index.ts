@@ -29,7 +29,7 @@ export interface FeatureFlags {
 
 export type SuggestionType = 'waitlist' | 'reschedule' | 'discovery' | 'next_lesson';
 export type SuggestionStatus = 'pending' | 'approved' | 'declined' | 'expired';
-export type UserRole = 'admin' | 'scheduler' | 'viewer';
+export type UserRole = 'admin' | 'scheduler' | 'viewer' | 'student' | 'instructor';
 
 export interface Suggestion {
   id: string;
@@ -124,6 +124,79 @@ export interface AuthPayload {
   role: UserRole;
   operatorId: string;
   exp: number;
+}
+
+export type LicenseType = 'PPL' | 'IR' | 'CPL';
+
+export const LICENSE_HOURS_REQUIRED: Record<LicenseType, number> = {
+  PPL: 70,
+  IR: 115,
+  CPL: 250,
+};
+
+export const LICENSE_LABELS: Record<LicenseType, string> = {
+  PPL: 'Private Pilot License',
+  IR: 'Instrument Rating',
+  CPL: 'Commercial Pilot License',
+};
+
+export interface StudentProfile {
+  id: string;
+  user_id: string;
+  operator_id: string;
+  license_type: LicenseType;
+  hours_logged: number;
+  hours_scheduled: number;
+  hours_required: number;
+  lessons_per_week_target: number;
+  instructor_id: string;
+  instructor_name: string;
+  aircraft_tail: string;
+  program_start_date: string;
+  created_at: string;
+}
+
+export interface AvailabilityWindow {
+  date: string; // ISO date string YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+}
+
+export interface LessonRequest {
+  id: string;
+  user_id: string;
+  operator_id: string;
+  availability_id: string;
+  status: 'pending_approval' | 'approved' | 'declined' | 'partial';
+  requested_hours: number;
+  ai_schedule: AIScheduleSlot[];
+  admin_notes?: string;
+  created_at: string;
+  reviewed_at?: string;
+}
+
+export interface AIScheduleSlot {
+  date: string;
+  startTime: string;
+  endTime: string;
+  lessonType: string;
+  instructorName: string;
+  aircraftTail: string;
+  durationHours: number;
+  lessonNumber: number;
+  objectives: string[];
+}
+
+export interface ScheduledLesson {
+  id: string;
+  user_id: string;
+  lesson_type: string;
+  instructor_name: string;
+  aircraft_tail: string;
+  start_time: string;
+  end_time: string;
+  status: 'proposed' | 'confirmed' | 'completed' | 'cancelled';
+  duration_hours: number;
 }
 
 export const DEFAULT_OPERATOR_CONFIG: OperatorConfig = {

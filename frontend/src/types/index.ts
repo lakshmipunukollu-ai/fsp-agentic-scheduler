@@ -1,6 +1,6 @@
 export type SuggestionType = 'waitlist' | 'reschedule' | 'discovery' | 'next_lesson';
 export type SuggestionStatus = 'pending' | 'approved' | 'declined' | 'expired';
-export type UserRole = 'admin' | 'scheduler' | 'viewer';
+export type UserRole = 'admin' | 'scheduler' | 'viewer' | 'student' | 'instructor';
 
 export interface User {
   id: string;
@@ -93,6 +93,19 @@ export interface DashboardStats {
   declinedToday: number;
   avgResponseTime: number;
   suggestionsByType: Record<string, number>;
+  aircraftFillRate: number;
+  slotsFilledByAgent: number;
+  timeSavedHours: number;
+  revenueRecovered: number;
+  atRiskStudentCount: number;
+  pendingStudentRequests: number;
+  utilization: {
+    current: number;
+    proposed: number;
+    bookedSlots: number;
+    activeAircraft: number;
+    activeInstructors: number;
+  };
 }
 
 export interface PaginatedResponse<T> {

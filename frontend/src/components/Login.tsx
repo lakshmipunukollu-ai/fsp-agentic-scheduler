@@ -53,11 +53,48 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        <p style={styles.hint}>Demo: admin@skyhigh.com / admin123</p>
+        <div style={demoStyles.panel}>
+          <div style={demoStyles.panelTitle}>Demo Accounts — Click to auto-fill</div>
+          <div style={demoStyles.accountsGrid}>
+            {[
+              { role: 'Admin', email: 'admin@skyhigh.com', password: 'admin123', color: '#7c3aed', icon: '⚙', desc: 'Full dashboard + Students tab' },
+              { role: 'Dispatcher', email: 'dispatcher@skyhigh.com', password: 'scheduler123', color: '#2563eb', icon: '📋', desc: 'Approval queue + agent' },
+              { role: 'Student — PPL (37h)', email: 'emma@skyhigh.com', password: 'student123', color: '#059669', icon: '✈', desc: 'Private Pilot, 53% complete' },
+              { role: 'Student — CPL (112h)', email: 'carlos@skyhigh.com', password: 'student123', color: '#d97706', icon: '🎓', desc: 'Commercial Pilot, 45% complete' },
+            ].map(account => (
+              <button
+                key={account.email}
+                onClick={() => { setEmail(account.email); setPassword(account.password); }}
+                style={{ ...demoStyles.accountBtn, borderColor: account.color + '30' }}
+              >
+                <span style={{ ...demoStyles.accountIcon, background: account.color + '12', color: account.color }}>
+                  {account.icon}
+                </span>
+                <div style={demoStyles.accountInfo}>
+                  <div style={{ ...demoStyles.accountRole, color: account.color }}>{account.role}</div>
+                  <div style={demoStyles.accountEmail}>{account.email}</div>
+                  <div style={demoStyles.accountDesc}>{account.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
+const demoStyles: Record<string, React.CSSProperties> = {
+  panel: { marginTop: '20px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' },
+  panelTitle: { fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '12px' },
+  accountsGrid: { display: 'flex', flexDirection: 'column' as const, gap: '8px' },
+  accountBtn: { display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: '#fff', border: '1px solid', borderRadius: '8px', cursor: 'pointer', textAlign: 'left' as const, width: '100%' },
+  accountIcon: { width: '36px', height: '36px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 },
+  accountInfo: { flex: 1 },
+  accountRole: { fontSize: '13px', fontWeight: 700, marginBottom: '1px' },
+  accountEmail: { fontSize: '11px', color: '#64748b' },
+  accountDesc: { fontSize: '11px', color: '#94a3b8', marginTop: '1px' },
+};
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
@@ -139,10 +176,5 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     fontSize: '13px',
     border: '1px solid #fecaca',
-  },
-  hint: {
-    marginTop: '20px',
-    fontSize: '12px',
-    color: '#94a3b8',
   },
 };

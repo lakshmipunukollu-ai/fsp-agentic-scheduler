@@ -81,7 +81,26 @@ export const api = {
 
   // Dashboard
   getDashboardStats: () =>
-    request<{ pending: number; approvedToday: number; declinedToday: number; avgResponseTime: number; suggestionsByType: Record<string, number> }>('/dashboard/stats'),
+    request<{
+      pending: number;
+      approvedToday: number;
+      declinedToday: number;
+      avgResponseTime: number;
+      suggestionsByType: Record<string, number>;
+      aircraftFillRate: number;
+      slotsFilledByAgent: number;
+      timeSavedHours: number;
+      revenueRecovered: number;
+      atRiskStudentCount: number;
+      pendingStudentRequests: number;
+      utilization: {
+        current: number;
+        proposed: number;
+        bookedSlots: number;
+        activeAircraft: number;
+        activeInstructors: number;
+      };
+    }>('/dashboard/stats'),
 
   // Audit Log
   getAuditLog: (params?: { suggestion_id?: string; page?: number; limit?: number }) => {
@@ -111,4 +130,47 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(flags),
     }),
+
+  // Agent
+  runAgent: () =>
+    request<{ created: number; suggestions: unknown[] }>('/agent/run', {
+      method: 'POST',
+    }),
+
+  getDeclineExplanation: (suggestionId: string) =>
+    request<{ explanation: string }>('/agent/decline-explanation', {
+      method: 'POST',
+      body: JSON.stringify({ suggestionId }),
+    }),
+
+  // Students
+  getStudentProfile: () =>
+    request<{ profile: unknown; lessons: unknown[]; recentRequests: unknown[]; progress: { hoursLogged: number; hoursScheduled: number; hoursRequired: number; hoursRemaining: number; completionPct: number; paceStatus: string; paceDiff: number; projectedGradDate: string } }>('/students/profile'),
+
+  getStudentCalendar: () =>
+    request<{ lessons: unknown[] }>('/students/calendar'),
+
+  requestSchedule: (data: { windows: { date: string; startTime: string; endTime: string }[]; goalHours: number; weekStart: string }) =>
+    request<{ request: unknown; schedule: unknown[] }>('/students/request-schedule', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getAllStudents: () =>
+    request<{ students: unknown[] }>('/students/all'),
+
+  getStudentDetailForAdmin: (userId: string) =>
+    request<{ profile: unknown; lessons: unknown[]; requests: unknown[]; minimums: unknown[] }>(`/students/${userId}/profile`),
+
+  approveStudentRequest: (requestId: string) =>
+    request<{ ok: boolean; lessonsCreated: number; lessons: unknown[] }>(`/students/approve-request/${requestId}`, { method: 'POST' }),
+
+  getStudentNotifications: () =>
+    request<{ notifications: unknown[] }>('/students/notifications'),
+
+  markNotificationRead: (id: string) =>
+    request<{ ok: boolean }>(`/students/notifications/${id}/read`, { method: 'POST' }),
+
+  getInstructorSchedule: () =>
+    request<{ lessons: unknown[]; instructorName: string }>('/students/instructor-schedule'),
 };

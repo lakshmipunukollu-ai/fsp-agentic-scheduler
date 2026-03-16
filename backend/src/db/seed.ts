@@ -3,8 +3,30 @@ import { v4 as uuidv4 } from 'uuid';
 import { getPool, closePool } from './connection';
 import { DEFAULT_OPERATOR_CONFIG, DEFAULT_FEATURE_FLAGS } from '../types';
 
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString();
+}
+
+function hoursFromNow(n: number): string {
+  const d = new Date();
+  d.setHours(d.getHours() + n);
+  return d.toISOString();
+}
+
 async function seed() {
   const pool = getPool();
+
+  // Wipe existing data in correct foreign key order
+  await pool.query(`DELETE FROM notifications`);
+  await pool.query(`DELETE FROM scheduled_lessons`);
+  await pool.query(`DELETE FROM lesson_requests`);
+  await pool.query(`DELETE FROM student_availability`);
+  await pool.query(`DELETE FROM student_profiles`);
+  await pool.query(`DELETE FROM audit_log`);
+  await pool.query(`DELETE FROM suggestions`);
+  await pool.query(`DELETE FROM users WHERE email NOT IN ('system')`);
 
   // Create operator
   const operatorId = uuidv4();
@@ -14,258 +36,232 @@ async function seed() {
      ON CONFLICT (fsp_operator_id) DO NOTHING`,
     [operatorId, 'FSP-001', 'SkyHigh Flight School', JSON.stringify(DEFAULT_OPERATOR_CONFIG), JSON.stringify(DEFAULT_FEATURE_FLAGS)]
   );
-
-  // Get the operator id (in case it already existed)
   const opResult = await pool.query(`SELECT id FROM operators WHERE fsp_operator_id = 'FSP-001'`);
   const opId = opResult.rows[0].id;
 
-  // Create admin user
-  const adminPasswordHash = await bcrypt.hash('admin123', 10);
+  // Create users
+  const adminId = uuidv4();
+  const schedulerId = uuidv4();
+  const adminHash = await bcrypt.hash('admin123', 10);
+  const schedulerHash = await bcrypt.hash('scheduler123', 10);
+
   await pool.query(
     `INSERT INTO users (id, operator_id, email, password_hash, name, role)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (email) DO NOTHING`,
-    [uuidv4(), opId, 'admin@skyhigh.com', adminPasswordHash, 'Admin User', 'admin']
+     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (email) DO NOTHING`,
+    [adminId, opId, 'admin@skyhigh.com', adminHash, 'Admin User', 'admin']
   );
-
-  // Create scheduler user
-  const schedulerPasswordHash = await bcrypt.hash('scheduler123', 10);
-  const schedulerUserId = uuidv4();
   await pool.query(
     `INSERT INTO users (id, operator_id, email, password_hash, name, role)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (email) DO NOTHING`,
-    [schedulerUserId, opId, 'dispatcher@skyhigh.com', schedulerPasswordHash, 'Jane Dispatcher', 'scheduler']
+     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (email) DO NOTHING`,
+    [schedulerId, opId, 'dispatcher@skyhigh.com', schedulerHash, 'Jane Dispatcher', 'scheduler']
   );
 
-  // Create sample suggestions
   const suggestions = [
+    // --- APPROVED (past week) ---
     {
-      type: 'waitlist',
-      priority: 90,
-      payload: {
-        studentId: 'STU-101',
-        studentName: 'John Smith',
-        instructorId: 'INS-201',
-        instructorName: 'Capt. Sarah Johnson',
-        aircraftId: 'AC-301',
-        aircraftTail: 'N12345',
-        startTime: '2026-03-15T09:00:00Z',
-        endTime: '2026-03-15T11:00:00Z',
-        lessonType: 'Private Pilot - Lesson 12',
-        locationId: 'LOC-001',
-      },
-      rationale: {
-        trigger: 'Cancellation detected: reservation #R-4567 by Mike Brown',
-        candidateScore: [
-          {
-            studentId: 'STU-101',
-            name: 'John Smith',
-            score: 0.92,
-            signals: {
-              daysSinceLastFlight: 14,
-              daysUntilNextFlight: 21,
-              totalFlightHours: 35,
-              customWeights: {},
-            },
-          },
-          {
-            studentId: 'STU-102',
-            name: 'Emily Davis',
-            score: 0.78,
-            signals: {
-              daysSinceLastFlight: 7,
-              daysUntilNextFlight: 10,
-              totalFlightHours: 52,
-              customWeights: {},
-            },
-          },
-        ],
-        constraintsEvaluated: [
-          'availability: pass',
-          'daylight hours: pass',
-          'aircraft type rating: pass',
-          'instructor currency: pass',
-          'FAA rest requirements: pass',
-        ],
-        alternativesConsidered: 8,
-        confidence: 'high' as const,
-      },
+      type: 'waitlist', status: 'approved', priority: 95, createdAt: daysAgo(6), reviewedAt: daysAgo(6),
+      payload: { studentId: 'STU-101', studentName: 'John Smith', instructorId: 'INS-201', instructorName: 'Capt. Sarah Johnson', aircraftId: 'AC-301', aircraftTail: 'N12345', startTime: hoursFromNow(-144), endTime: hoursFromNow(-142), lessonType: 'Private Pilot - Lesson 12', locationId: 'LOC-001' },
+      rationale: { trigger: 'Cancellation detected: reservation #R-4567 by Mike Brown', candidateScore: [{ studentId: 'STU-101', name: 'John Smith', score: 0.92, signals: { daysSinceLastFlight: 14, daysUntilNextFlight: 21, totalFlightHours: 35, customWeights: {} } }], constraintsEvaluated: ['availability: pass', 'daylight hours: pass', 'aircraft type rating: pass', 'instructor currency: pass', 'FAA rest requirements: pass'], alternativesConsidered: 8, confidence: 'high' as const },
     },
     {
-      type: 'reschedule',
-      priority: 75,
-      payload: {
-        studentId: 'STU-103',
-        studentName: 'Alex Turner',
-        instructorId: 'INS-202',
-        instructorName: 'Capt. Mike Rogers',
-        aircraftId: 'AC-302',
-        aircraftTail: 'N67890',
-        startTime: '2026-03-16T14:00:00Z',
-        endTime: '2026-03-16T16:00:00Z',
-        lessonType: 'Instrument Rating - Lesson 5',
-        locationId: 'LOC-001',
-      },
-      rationale: {
-        trigger: 'Weather cancellation: original slot 2026-03-14T10:00:00Z',
-        candidateScore: [
-          {
-            studentId: 'STU-103',
-            name: 'Alex Turner',
-            score: 0.85,
-            signals: {
-              daysSinceLastFlight: 3,
-              daysUntilNextFlight: 14,
-              totalFlightHours: 68,
-              customWeights: {},
-            },
-          },
-        ],
-        constraintsEvaluated: [
-          'availability: pass',
-          'daylight hours: pass',
-          'aircraft IFR equipped: pass',
-          'instructor IFR current: pass',
-        ],
-        alternativesConsidered: 5,
-        confidence: 'medium' as const,
-      },
+      type: 'reschedule', status: 'approved', priority: 80, createdAt: daysAgo(5), reviewedAt: daysAgo(5),
+      payload: { studentId: 'STU-103', studentName: 'Alex Turner', instructorId: 'INS-202', instructorName: 'Capt. Mike Rogers', aircraftId: 'AC-302', aircraftTail: 'N67890', startTime: hoursFromNow(-120), endTime: hoursFromNow(-118), lessonType: 'Instrument Rating - Lesson 5', locationId: 'LOC-001' },
+      rationale: { trigger: 'Weather cancellation: original slot 5 days ago', candidateScore: [{ studentId: 'STU-103', name: 'Alex Turner', score: 0.85, signals: { daysSinceLastFlight: 3, daysUntilNextFlight: 14, totalFlightHours: 68, customWeights: {} } }], constraintsEvaluated: ['availability: pass', 'aircraft IFR equipped: pass', 'instructor IFR current: pass'], alternativesConsidered: 5, confidence: 'medium' as const },
     },
     {
-      type: 'discovery',
-      priority: 60,
-      payload: {
-        studentId: 'STU-NEW-001',
-        studentName: 'Rachel Green',
-        instructorId: 'INS-201',
-        instructorName: 'Capt. Sarah Johnson',
-        aircraftId: 'AC-303',
-        aircraftTail: 'N11223',
-        startTime: '2026-03-17T10:00:00Z',
-        endTime: '2026-03-17T11:30:00Z',
-        lessonType: 'Discovery Flight',
-        locationId: 'LOC-001',
-      },
-      rationale: {
-        trigger: 'New discovery flight request from website form',
-        candidateScore: [
-          {
-            studentId: 'STU-NEW-001',
-            name: 'Rachel Green',
-            score: 1.0,
-            signals: {
-              daysSinceLastFlight: 0,
-              daysUntilNextFlight: 0,
-              totalFlightHours: 0,
-              customWeights: { leadSource: 0.5 },
-            },
-          },
-        ],
-        constraintsEvaluated: [
-          'instructor availability: pass',
-          'aircraft availability: pass',
-          'weather forecast: pass',
-        ],
-        alternativesConsidered: 3,
-        confidence: 'high' as const,
-      },
+      type: 'next_lesson', status: 'approved', priority: 75, createdAt: daysAgo(4), reviewedAt: daysAgo(4),
+      payload: { studentId: 'STU-104', studentName: 'David Wilson', instructorId: 'INS-203', instructorName: 'Capt. Lisa Park', aircraftId: 'AC-301', aircraftTail: 'N12345', startTime: hoursFromNow(-96), endTime: hoursFromNow(-94), lessonType: 'Private Pilot - Lesson 8', locationId: 'LOC-001' },
+      rationale: { trigger: 'Lesson completion: Private Pilot - Lesson 7 completed', candidateScore: [{ studentId: 'STU-104', name: 'David Wilson', score: 0.88, signals: { daysSinceLastFlight: 1, daysUntilNextFlight: 0, totalFlightHours: 22, customWeights: {} } }], constraintsEvaluated: ['syllabus progression: pass', 'instructor availability: pass', 'aircraft availability: pass'], alternativesConsidered: 4, confidence: 'high' as const },
     },
     {
-      type: 'next_lesson',
-      priority: 50,
-      payload: {
-        studentId: 'STU-104',
-        studentName: 'David Wilson',
-        instructorId: 'INS-203',
-        instructorName: 'Capt. Lisa Park',
-        aircraftId: 'AC-301',
-        aircraftTail: 'N12345',
-        startTime: '2026-03-18T08:00:00Z',
-        endTime: '2026-03-18T10:00:00Z',
-        lessonType: 'Private Pilot - Lesson 8',
-        locationId: 'LOC-001',
-      },
-      rationale: {
-        trigger: 'Lesson completion: Private Pilot - Lesson 7 completed on 2026-03-13',
-        candidateScore: [
-          {
-            studentId: 'STU-104',
-            name: 'David Wilson',
-            score: 0.88,
-            signals: {
-              daysSinceLastFlight: 1,
-              daysUntilNextFlight: 0,
-              totalFlightHours: 22,
-              customWeights: {},
-            },
-          },
-        ],
-        constraintsEvaluated: [
-          'syllabus progression: pass',
-          'instructor availability: pass',
-          'aircraft availability: pass',
-          'student currency: pass',
-        ],
-        alternativesConsidered: 4,
-        confidence: 'high' as const,
-      },
+      type: 'waitlist', status: 'approved', priority: 90, createdAt: daysAgo(3), reviewedAt: daysAgo(3),
+      payload: { studentId: 'STU-105', studentName: 'Maria Garcia', instructorId: 'INS-201', instructorName: 'Capt. Sarah Johnson', aircraftId: 'AC-303', aircraftTail: 'N11223', startTime: hoursFromNow(-72), endTime: hoursFromNow(-70), lessonType: 'Private Pilot - Lesson 15', locationId: 'LOC-001' },
+      rationale: { trigger: 'Cancellation fill: reservation #R-4500', candidateScore: [{ studentId: 'STU-105', name: 'Maria Garcia', score: 0.95, signals: { daysSinceLastFlight: 21, daysUntilNextFlight: 30, totalFlightHours: 40, customWeights: {} } }], constraintsEvaluated: ['availability: pass', 'daylight: pass', 'aircraft: pass'], alternativesConsidered: 6, confidence: 'high' as const },
+    },
+    {
+      type: 'discovery', status: 'approved', priority: 70, createdAt: daysAgo(2), reviewedAt: daysAgo(2),
+      payload: { studentId: 'STU-NEW-001', studentName: 'Rachel Green', instructorId: 'INS-201', instructorName: 'Capt. Sarah Johnson', aircraftId: 'AC-302', aircraftTail: 'N67890', startTime: hoursFromNow(-48), endTime: hoursFromNow(-46), lessonType: 'Discovery Flight', locationId: 'LOC-001' },
+      rationale: { trigger: 'New discovery flight request from website form', candidateScore: [{ studentId: 'STU-NEW-001', name: 'Rachel Green', score: 1.0, signals: { daysSinceLastFlight: 0, daysUntilNextFlight: 0, totalFlightHours: 0, customWeights: { leadSource: 0.5 } } }], constraintsEvaluated: ['instructor availability: pass', 'aircraft availability: pass', 'weather forecast: pass'], alternativesConsidered: 3, confidence: 'high' as const },
+    },
+    {
+      type: 'next_lesson', status: 'approved', priority: 72, createdAt: daysAgo(1), reviewedAt: daysAgo(1),
+      payload: { studentId: 'STU-106', studentName: 'James Park', instructorId: 'INS-203', instructorName: 'Capt. Lisa Park', aircraftId: 'AC-301', aircraftTail: 'N12345', startTime: hoursFromNow(-24), endTime: hoursFromNow(-22), lessonType: 'Commercial Pilot - Lesson 3', locationId: 'LOC-001' },
+      rationale: { trigger: 'Lesson completion: Commercial Pilot - Lesson 2 completed yesterday', candidateScore: [{ studentId: 'STU-106', name: 'James Park', score: 0.91, signals: { daysSinceLastFlight: 1, daysUntilNextFlight: 0, totalFlightHours: 95, customWeights: {} } }], constraintsEvaluated: ['commercial syllabus check: pass', 'instructor availability: pass', 'aircraft availability: pass', 'student currency: pass'], alternativesConsidered: 2, confidence: 'high' as const },
+    },
+
+    // --- DECLINED ---
+    {
+      type: 'waitlist', status: 'declined', priority: 60, createdAt: daysAgo(5), reviewedAt: daysAgo(5),
+      payload: { studentId: 'STU-107', studentName: 'Kevin Lee', instructorId: 'INS-202', instructorName: 'Capt. Mike Rogers', aircraftId: 'AC-302', aircraftTail: 'N67890', startTime: hoursFromNow(-115), endTime: hoursFromNow(-113), lessonType: 'Private Pilot - Lesson 4', locationId: 'LOC-001' },
+      rationale: { trigger: 'Cancellation detected: reservation #R-4321', candidateScore: [{ studentId: 'STU-107', name: 'Kevin Lee', score: 0.62, signals: { daysSinceLastFlight: 2, daysUntilNextFlight: 3, totalFlightHours: 12, customWeights: {} } }, { studentId: 'STU-108', name: 'Marcus Thompson', score: 0.71, signals: { daysSinceLastFlight: 8, daysUntilNextFlight: 15, totalFlightHours: 28, customWeights: {} } }], constraintsEvaluated: ['availability: pass', 'daylight hours: pass', 'medical currency: WARN - expires in 30 days'], alternativesConsidered: 7, confidence: 'medium' as const },
+    },
+    {
+      type: 'reschedule', status: 'declined', priority: 55, createdAt: daysAgo(3), reviewedAt: daysAgo(3),
+      payload: { studentId: 'STU-109', studentName: 'Tom Brady', instructorId: 'INS-201', instructorName: 'Capt. Sarah Johnson', aircraftId: 'AC-303', aircraftTail: 'N11223', startTime: hoursFromNow(-68), endTime: hoursFromNow(-66), lessonType: 'Instrument Rating - Lesson 2', locationId: 'LOC-001' },
+      rationale: { trigger: 'Weather cancellation 3 days ago', candidateScore: [{ studentId: 'STU-109', name: 'Tom Brady', score: 0.58, signals: { daysSinceLastFlight: 1, daysUntilNextFlight: 2, totalFlightHours: 55, customWeights: {} } }], constraintsEvaluated: ['availability: pass', 'IFR currency: FAIL - not current'], alternativesConsidered: 3, confidence: 'low' as const },
+    },
+
+    // --- EXPIRED ---
+    {
+      type: 'waitlist', status: 'expired', priority: 65, createdAt: daysAgo(4), reviewedAt: null,
+      payload: { studentId: 'STU-110', studentName: 'Nina Patel', instructorId: 'INS-202', instructorName: 'Capt. Mike Rogers', aircraftId: 'AC-301', aircraftTail: 'N12345', startTime: hoursFromNow(-90), endTime: hoursFromNow(-88), lessonType: 'Private Pilot - Lesson 7', locationId: 'LOC-001' },
+      rationale: { trigger: 'Cancellation detected: reservation #R-4400', candidateScore: [{ studentId: 'STU-110', name: 'Nina Patel', score: 0.78, signals: { daysSinceLastFlight: 5, daysUntilNextFlight: 12, totalFlightHours: 18, customWeights: {} } }], constraintsEvaluated: ['availability: pass', 'daylight: pass'], alternativesConsidered: 4, confidence: 'medium' as const },
+    },
+
+    // --- PENDING (current queue) ---
+    {
+      type: 'waitlist', status: 'pending', priority: 90, createdAt: hoursFromNow(-2), reviewedAt: null,
+      payload: { studentId: 'STU-101', studentName: 'John Smith', instructorId: 'INS-201', instructorName: 'Capt. Sarah Johnson', aircraftId: 'AC-301', aircraftTail: 'N12345', startTime: hoursFromNow(24), endTime: hoursFromNow(26), lessonType: 'Private Pilot - Lesson 13', locationId: 'LOC-001' },
+      rationale: { trigger: 'Cancellation detected: reservation #R-4600 by Mike Brown', candidateScore: [{ studentId: 'STU-101', name: 'John Smith', score: 0.92, signals: { daysSinceLastFlight: 8, daysUntilNextFlight: 14, totalFlightHours: 37, customWeights: {} } }, { studentId: 'STU-108', name: 'Marcus Thompson', score: 0.74, signals: { daysSinceLastFlight: 12, daysUntilNextFlight: 20, totalFlightHours: 28, customWeights: {} } }], constraintsEvaluated: ['availability: pass', 'daylight hours: pass', 'aircraft type rating: pass', 'instructor currency: pass', 'FAA rest requirements: pass'], alternativesConsidered: 8, confidence: 'high' as const },
+    },
+    {
+      type: 'reschedule', status: 'pending', priority: 75, createdAt: hoursFromNow(-3), reviewedAt: null,
+      payload: { studentId: 'STU-103', studentName: 'Alex Turner', instructorId: 'INS-202', instructorName: 'Capt. Mike Rogers', aircraftId: 'AC-302', aircraftTail: 'N67890', startTime: hoursFromNow(36), endTime: hoursFromNow(38), lessonType: 'Instrument Rating - Lesson 6', locationId: 'LOC-001' },
+      rationale: { trigger: 'Weather cancellation: original slot 2 days ago', candidateScore: [{ studentId: 'STU-103', name: 'Alex Turner', score: 0.85, signals: { daysSinceLastFlight: 3, daysUntilNextFlight: 14, totalFlightHours: 70, customWeights: {} } }], constraintsEvaluated: ['availability: pass', 'daylight hours: pass', 'aircraft IFR equipped: pass', 'instructor IFR current: pass'], alternativesConsidered: 5, confidence: 'medium' as const },
+    },
+    {
+      type: 'discovery', status: 'pending', priority: 60, createdAt: hoursFromNow(-1), reviewedAt: null,
+      payload: { studentId: 'STU-NEW-002', studentName: 'Sophie Chen', instructorId: 'INS-201', instructorName: 'Capt. Sarah Johnson', aircraftId: 'AC-303', aircraftTail: 'N11223', startTime: hoursFromNow(48), endTime: hoursFromNow(49.5), lessonType: 'Discovery Flight', locationId: 'LOC-001' },
+      rationale: { trigger: 'New discovery flight request via website', candidateScore: [{ studentId: 'STU-NEW-002', name: 'Sophie Chen', score: 1.0, signals: { daysSinceLastFlight: 0, daysUntilNextFlight: 0, totalFlightHours: 0, customWeights: { leadSource: 0.5 } } }], constraintsEvaluated: ['instructor availability: pass', 'aircraft availability: pass', 'weather forecast: pass'], alternativesConsidered: 2, confidence: 'high' as const },
+    },
+    {
+      type: 'next_lesson', status: 'pending', priority: 50, createdAt: hoursFromNow(-4), reviewedAt: null,
+      payload: { studentId: 'STU-104', studentName: 'David Wilson', instructorId: 'INS-203', instructorName: 'Capt. Lisa Park', aircraftId: 'AC-301', aircraftTail: 'N12345', startTime: hoursFromNow(72), endTime: hoursFromNow(74), lessonType: 'Private Pilot - Lesson 9', locationId: 'LOC-001' },
+      rationale: { trigger: 'Lesson completion: Private Pilot - Lesson 8 completed today', candidateScore: [{ studentId: 'STU-104', name: 'David Wilson', score: 0.88, signals: { daysSinceLastFlight: 1, daysUntilNextFlight: 0, totalFlightHours: 24, customWeights: {} } }], constraintsEvaluated: ['syllabus progression: pass', 'instructor availability: pass', 'aircraft availability: pass', 'student currency: pass'], alternativesConsidered: 4, confidence: 'high' as const },
+    },
+    {
+      type: 'waitlist', status: 'pending', priority: 85, createdAt: hoursFromNow(-1.5), reviewedAt: null,
+      payload: { studentId: 'STU-111', studentName: 'Carlos Rivera', instructorId: 'INS-202', instructorName: 'Capt. Mike Rogers', aircraftId: 'AC-302', aircraftTail: 'N67890', startTime: hoursFromNow(30), endTime: hoursFromNow(32), lessonType: 'Commercial Pilot - Lesson 7', locationId: 'LOC-001' },
+      rationale: { trigger: 'Cancellation detected: reservation #R-4610 by Emma White', candidateScore: [{ studentId: 'STU-111', name: 'Carlos Rivera', score: 0.89, signals: { daysSinceLastFlight: 9, daysUntilNextFlight: 18, totalFlightHours: 88, customWeights: {} } }, { studentId: 'STU-112', name: 'Aisha Johnson', score: 0.76, signals: { daysSinceLastFlight: 6, daysUntilNextFlight: 10, totalFlightHours: 62, customWeights: {} } }], constraintsEvaluated: ['availability: pass', 'commercial rating check: pass', 'aircraft type: pass', 'instructor currency: pass'], alternativesConsidered: 10, confidence: 'high' as const },
     },
   ];
 
   for (const s of suggestions) {
     const suggestionId = uuidv4();
+    if (s.status === 'expired') {
+      await pool.query(
+        `INSERT INTO suggestions (id, operator_id, type, status, priority, payload, rationale, created_at, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [suggestionId, opId, s.type, s.status, s.priority, JSON.stringify(s.payload), JSON.stringify(s.rationale), s.createdAt, s.createdAt]
+      );
+    } else if (s.reviewedAt) {
+      await pool.query(
+        `INSERT INTO suggestions (id, operator_id, type, status, priority, payload, rationale, created_at, reviewed_at, reviewed_by, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW() + INTERVAL '24 hours')`,
+        [suggestionId, opId, s.type, s.status, s.priority, JSON.stringify(s.payload), JSON.stringify(s.rationale), s.createdAt, s.reviewedAt, schedulerId]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO suggestions (id, operator_id, type, status, priority, payload, rationale, created_at, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW() + INTERVAL '24 hours')`,
+        [suggestionId, opId, s.type, s.status, s.priority, JSON.stringify(s.payload), JSON.stringify(s.rationale), s.createdAt]
+      );
+    }
+
     await pool.query(
-      `INSERT INTO suggestions (id, operator_id, type, status, priority, payload, rationale, expires_at)
-       VALUES ($1, $2, $3, 'pending', $4, $5, $6, NOW() + INTERVAL '24 hours')`,
-      [suggestionId, opId, s.type, s.priority, JSON.stringify(s.payload), JSON.stringify(s.rationale)]
+      `INSERT INTO audit_log (operator_id, suggestion_id, event_type, actor, payload, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [opId, suggestionId, 'suggestion_created', 'agent', JSON.stringify({ type: s.type, confidence: s.rationale.confidence }), s.createdAt]
     );
 
-    // Audit log entry
+    if (s.status === 'approved' && s.reviewedAt) {
+      await pool.query(
+        `INSERT INTO audit_log (operator_id, suggestion_id, event_type, actor, payload, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [opId, suggestionId, 'suggestion_approved', `scheduler:${schedulerId}`, JSON.stringify({ notes: 'Approved' }), s.reviewedAt]
+      );
+    }
+    if (s.status === 'declined' && s.reviewedAt) {
+      await pool.query(
+        `INSERT INTO audit_log (operator_id, suggestion_id, event_type, actor, payload, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [opId, suggestionId, 'suggestion_declined', `scheduler:${schedulerId}`, JSON.stringify({ reason: 'Constraint conflict' }), s.reviewedAt]
+      );
+    }
+  }
+
+  // --- STUDENT USERS & PROFILES ---
+  const students = [
+    { name: 'Emma Wilson', email: 'emma@skyhigh.com', password: 'student123', license: 'PPL', hoursLogged: 37, hoursRequired: 70, daysAgoStart: 45 },
+    { name: 'Carlos Rivera', email: 'carlos@skyhigh.com', password: 'student123', license: 'CPL', hoursLogged: 112, hoursRequired: 250, daysAgoStart: 120 },
+    { name: 'Sophie Chen', email: 'sophie@skyhigh.com', password: 'student123', license: 'IR', hoursLogged: 28, hoursRequired: 115, daysAgoStart: 60 },
+    { name: 'Marcus Johnson', email: 'marcus@skyhigh.com', password: 'student123', license: 'PPL', hoursLogged: 8, hoursRequired: 70, daysAgoStart: 30 },
+  ];
+
+  const instructors = ['Capt. Sarah Johnson', 'Capt. Mike Rogers', 'Capt. Lisa Park', 'Capt. Sarah Johnson'];
+  const aircraft = ['N12345', 'N67890', 'N11223', 'N12345'];
+
+  for (let i = 0; i < students.length; i++) {
+    const s = students[i];
+    const studentId = uuidv4();
+    const hash = await bcrypt.hash(s.password, 10);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - s.daysAgoStart);
+
     await pool.query(
-      `INSERT INTO audit_log (operator_id, suggestion_id, event_type, actor, payload)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [opId, suggestionId, 'suggestion_created', 'agent', JSON.stringify({ type: s.type, confidence: s.rationale.confidence })]
+      `INSERT INTO users (id, operator_id, email, password_hash, name, role)
+       VALUES ($1, $2, $3, $4, $5, 'student') ON CONFLICT (email) DO NOTHING`,
+      [studentId, opId, s.email, hash, s.name]
+    );
+
+    const userResult = await pool.query(`SELECT id FROM users WHERE email = $1`, [s.email]);
+    const uid = userResult.rows[0].id;
+
+    await pool.query(
+      `INSERT INTO student_profiles (user_id, operator_id, license_type, hours_logged, hours_scheduled, hours_required, lessons_per_week_target, instructor_name, aircraft_tail, program_start_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT (user_id) DO UPDATE SET hours_logged = $4`,
+      [uid, opId, s.license, s.hoursLogged, s.hoursLogged * 0.1, s.hoursRequired, 2, instructors[i], aircraft[i], startDate.toISOString().split('T')[0]]
+    ).catch(() => {});
+
+    // Add a few completed lessons
+    for (let j = 0; j < Math.min(5, Math.floor(s.hoursLogged / 4)); j++) {
+      const lessonDate = new Date();
+      lessonDate.setDate(lessonDate.getDate() - (j + 1) * 5);
+      const endDate = new Date(lessonDate);
+      endDate.setHours(endDate.getHours() + 2);
+      await pool.query(
+        `INSERT INTO scheduled_lessons (user_id, operator_id, lesson_type, instructor_name, aircraft_tail, start_time, end_time, status, duration_hours)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', 2)`,
+        [uid, opId, `${s.license} - Lesson ${j + 1}`, instructors[i], aircraft[i], lessonDate.toISOString(), endDate.toISOString()]
+      );
+    }
+  }
+
+  // Add future confirmed lessons so utilization shows non-zero
+  const studentUsers = await pool.query(
+    `SELECT sp.user_id, sp.instructor_name, sp.aircraft_tail, sp.license_type FROM student_profiles sp WHERE sp.operator_id = $1`,
+    [opId]
+  );
+
+  for (const s of studentUsers.rows) {
+    for (let i = 0; i < 3; i++) {
+      const lessonDate = new Date();
+      lessonDate.setDate(lessonDate.getDate() + (i + 1) * 2);
+      lessonDate.setHours(9 + i * 2, 0, 0, 0);
+      const endDate = new Date(lessonDate);
+      endDate.setHours(endDate.getHours() + 2);
+      await pool.query(
+        `INSERT INTO scheduled_lessons (user_id, operator_id, lesson_type, instructor_name, aircraft_tail, start_time, end_time, status, duration_hours)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', 2)`,
+        [s.user_id, opId, `${s.license_type} - Upcoming Lesson ${i + 1}`, s.instructor_name, s.aircraft_tail, lessonDate.toISOString(), endDate.toISOString()]
+      );
+    }
+  }
+
+  // Add some notifications
+  await pool.query(`DELETE FROM notifications WHERE operator_id = $1`, [opId]);
+  const studentUsersForNotif = await pool.query(`SELECT id, name FROM users WHERE operator_id = $1 AND role = 'student' LIMIT 2`, [opId]);
+  for (const u of studentUsersForNotif.rows) {
+    await pool.query(
+      `INSERT INTO notifications (operator_id, user_id, type, title, body, payload)
+       VALUES ($1, $2, 'lesson_confirmed', 'Lesson Confirmed!', $3, $4)`,
+      [opId, u.id, `Your upcoming lesson has been confirmed by your instructor.`, JSON.stringify({ studentName: u.name })]
     );
   }
 
-  // Add an approved suggestion for dashboard stats
-  const approvedId = uuidv4();
-  await pool.query(
-    `INSERT INTO suggestions (id, operator_id, type, status, priority, payload, rationale, reviewed_at)
-     VALUES ($1, $2, 'waitlist', 'approved', 80, $3, $4, NOW())`,
-    [
-      approvedId,
-      opId,
-      JSON.stringify({
-        studentId: 'STU-105',
-        studentName: 'Maria Garcia',
-        instructorId: 'INS-201',
-        instructorName: 'Capt. Sarah Johnson',
-        aircraftId: 'AC-301',
-        aircraftTail: 'N12345',
-        startTime: '2026-03-14T09:00:00Z',
-        endTime: '2026-03-14T11:00:00Z',
-        lessonType: 'Private Pilot - Lesson 15',
-      }),
-      JSON.stringify({
-        trigger: 'Cancellation fill: reservation #R-4500',
-        candidateScore: [{ studentId: 'STU-105', name: 'Maria Garcia', score: 0.95, signals: { daysSinceLastFlight: 21, daysUntilNextFlight: 30, totalFlightHours: 40, customWeights: {} } }],
-        constraintsEvaluated: ['availability: pass', 'daylight: pass', 'aircraft: pass'],
-        alternativesConsidered: 6,
-        confidence: 'high',
-      }),
-    ]
-  );
-
-  await pool.query(
-    `INSERT INTO audit_log (operator_id, suggestion_id, event_type, actor, payload)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [opId, approvedId, 'suggestion_approved', 'scheduler:' + schedulerUserId, JSON.stringify({ notes: 'Looks good' })]
-  );
-
   await closePool();
-  console.log('Seed data inserted successfully.');
+  console.log('Seed data inserted: 15 suggestions across all states, 7 days of history.');
 }
 
 seed().catch(err => {
