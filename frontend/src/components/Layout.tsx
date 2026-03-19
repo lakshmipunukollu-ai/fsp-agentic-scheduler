@@ -1,11 +1,12 @@
 import { useAuth } from '../context/AuthContext';
+import { UserRole } from '../types';
 
-const NAV_ITEMS = [
+const NAV_ITEMS: { id: string; label: string; icon: string; roles?: UserRole[] }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '⊞' },
   { id: 'queue', label: 'Approval Queue', icon: '✓' },
   { id: 'activity', label: 'Activity Feed', icon: '◎' },
-  { id: 'students', label: 'Students', icon: '⚑' },
-  { id: 'config', label: 'Policy Config', icon: '⚙' },
+  { id: 'students', label: 'Students', icon: '⚑', roles: ['admin'] },
+  { id: 'config', label: 'Policy Config', icon: '⚙', roles: ['admin'] },
 ];
 
 export default function Layout({
@@ -50,7 +51,7 @@ export default function Layout({
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' as const }}>
-          {NAV_ITEMS.map(item => {
+          {NAV_ITEMS.filter(item => !item.roles || (user?.role && item.roles.includes(user.role))).map(item => {
             const isActive = activeTab === item.id;
             return (
               <button key={item.id} onClick={() => onTabChange(item.id)} style={{
