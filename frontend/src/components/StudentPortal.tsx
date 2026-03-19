@@ -168,7 +168,7 @@ export default function StudentPortal() {
       {/* Header */}
       <div style={styles.header}>
         <div style={styles.headerLeft}>
-          <div style={styles.logo}>FSP</div>
+          <div style={styles.logo}>PB</div>
           <div>
             <div style={styles.headerTitle}>Student Portal</div>
             <div style={styles.headerSub}>{profile?.name} · {LICENSE_LABELS[profile?.license_type || 'PPL']}</div>

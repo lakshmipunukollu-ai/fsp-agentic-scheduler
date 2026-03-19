@@ -34,10 +34,10 @@ export default function Layout({
         {/* Logo */}
         <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: '#2563eb', color: '#fff', fontWeight: 800, fontSize: '13px', padding: '5px 9px', borderRadius: '6px', letterSpacing: '0.5px' }}>FSP</div>
+            <div style={{ background: '#2563eb', color: '#fff', fontWeight: 800, fontSize: '13px', padding: '5px 9px', borderRadius: '6px', letterSpacing: '0.5px' }}>PB</div>
             <div>
               <div style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '13px', lineHeight: 1.2 }}>Agentic Scheduler</div>
-              <div style={{ color: '#93c5fd', fontSize: '10px', marginTop: '2px' }}>Flight Schedule Pro</div>
+              <div style={{ color: '#93c5fd', fontSize: '10px', marginTop: '2px' }}>Pilotbase</div>
             </div>
             {notificationCount > 0 && (
               <div onClick={() => onTabChange('queue')} style={{ marginLeft: 'auto', position: 'relative' as const, cursor: 'pointer' }}>

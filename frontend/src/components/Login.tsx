@@ -24,9 +24,9 @@ export default function Login() {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <div style={styles.logo}>FSP</div>
+        <div style={styles.logo}>PB</div>
         <h1 style={styles.title}>Agentic Scheduler</h1>
-        <p style={styles.subtitle}>Flight Schedule Pro - Dispatcher Console</p>
+        <p style={styles.subtitle}>Pilotbase — Dispatcher Console</p>
         <form onSubmit={handleSubmit} style={styles.form}>
           {error && <div style={styles.error}>{error}</div>}
           <div style={styles.field}>
