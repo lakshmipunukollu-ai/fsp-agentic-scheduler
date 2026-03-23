@@ -1,4 +1,5 @@
 import twilio from 'twilio';
+import { Resend } from 'resend';
 import { query } from '../db/connection';
 import { AuditService } from './auditService';
 
@@ -7,16 +8,21 @@ const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_FROM_NUMBER = process.env.TWILIO_FROM_NUMBER;
 const TWILIO_ENABLED = !!(TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_FROM_NUMBER);
 
-// Email via nodemailer (optional — only active when SMTP_HOST env var is set)
+// Resend (HTTP API — works on Railway; preferred over SMTP)
+const RESEND_API_KEY = process.env.RESEND_API_KEY?.trim();
+const RESEND_FROM = (process.env.RESEND_FROM || process.env.SMTP_FROM || 'onboarding@resend.dev').trim();
+const resendClient = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+
+// SMTP fallback via nodemailer (only used when RESEND_API_KEY is not set)
 let nodemailer: typeof import('nodemailer') | null = null;
 const SMTP_HOST = process.env.SMTP_HOST?.trim();
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
 const SMTP_USER = process.env.SMTP_USER?.trim();
 const SMTP_PASS = process.env.SMTP_PASS?.trim();
 const SMTP_FROM = (process.env.SMTP_FROM || 'noreply@flightschool.com').trim();
-const EMAIL_ENABLED = !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
+const SMTP_ENABLED = !resendClient && !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
 
-if (EMAIL_ENABLED) {
+if (SMTP_ENABLED) {
   try {
     nodemailer = require('nodemailer');
   } catch {
@@ -25,13 +31,23 @@ if (EMAIL_ENABLED) {
 }
 
 let transporter: ReturnType<typeof import('nodemailer').createTransport> | null = null;
-if (EMAIL_ENABLED && nodemailer) {
+if (SMTP_ENABLED && nodemailer) {
   transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
     secure: SMTP_PORT === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
+}
+
+const EMAIL_ENABLED = !!(resendClient || transporter);
+
+if (resendClient) {
+  console.log('[Email] Resend configured — transactional email active.');
+} else if (transporter) {
+  console.log('[Email] SMTP configured — transactional email will send to users.email');
+} else {
+  console.log('[Email] No email provider configured (set RESEND_API_KEY or SMTP_HOST/USER/PASS).');
 }
 
 let twilioClient: ReturnType<typeof twilio> | null = null;
@@ -145,14 +161,23 @@ export class NotificationService {
       );
       emailLog.sent = false;
       emailLog.stub_reason = 'NOTIFICATIONS_LOG_ONLY=true — not sent';
-    } else if (EMAIL_ENABLED && transporter && studentEmail) {
+    } else if (resendClient && studentEmail) {
+      try {
+        await resendClient.emails.send({ from: RESEND_FROM, to: studentEmail, subject, html });
+        emailLog.sent = true;
+        console.log(`[Email] Sent (Resend) to ${studentName} <${studentEmail}>`);
+      } catch (err: unknown) {
+        emailLog.error = err instanceof Error ? err.message : String(err);
+        console.error(`[Email] Resend failed for ${studentName}:`, emailLog.error);
+      }
+    } else if (transporter && studentEmail) {
       try {
         await transporter.sendMail({ from: SMTP_FROM, to: studentEmail, subject, html });
         emailLog.sent = true;
-        console.log(`[Email] Sent to ${studentName} <${studentEmail}>`);
+        console.log(`[Email] Sent (SMTP) to ${studentName} <${studentEmail}>`);
       } catch (err: unknown) {
         emailLog.error = err instanceof Error ? err.message : String(err);
-        console.error(`[Email] Failed for ${studentName}:`, emailLog.error);
+        console.error(`[Email] SMTP failed for ${studentName}:`, emailLog.error);
       }
     } else {
       const reason = NOTIFICATIONS_LOG_ONLY && !studentEmail
@@ -232,17 +257,26 @@ export class NotificationService {
       return;
     }
 
-    if (EMAIL_ENABLED && transporter) {
+    if (resendClient) {
+      try {
+        await resendClient.emails.send({ from: RESEND_FROM, to: studentEmail, subject, html });
+        emailLog.sent = true;
+        console.log(`[Email] (${context}) → ${studentEmail} [Resend]`);
+      } catch (err: unknown) {
+        emailLog.error = err instanceof Error ? err.message : String(err);
+        console.error(`[Email] (${context}) Resend failed:`, emailLog.error);
+      }
+    } else if (transporter) {
       try {
         await transporter.sendMail({ from: SMTP_FROM, to: studentEmail, subject, html });
         emailLog.sent = true;
-        console.log(`[Email] (${context}) → ${studentEmail}`);
+        console.log(`[Email] (${context}) → ${studentEmail} [SMTP]`);
       } catch (err: unknown) {
         emailLog.error = err instanceof Error ? err.message : String(err);
-        console.error(`[Email] (${context}) failed:`, emailLog.error);
+        console.error(`[Email] (${context}) SMTP failed:`, emailLog.error);
       }
     } else {
-      emailLog.stub_reason = 'SMTP not configured';
+      emailLog.stub_reason = 'No email provider configured (set RESEND_API_KEY)';
       console.log(`[Email] STUB (${context}) — would send to ${studentEmail}: ${subject}`);
     }
 

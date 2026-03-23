@@ -180,15 +180,10 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(config.port, () => {
     console.log(`FSP Agentic Scheduler API running on port ${config.port}`);
     console.log(`Health check: http://localhost:${config.port}/health`);
-    const smtpOk = !!(process.env.SMTP_HOST?.trim() && process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
     const logOnly =
       process.env.NOTIFICATIONS_LOG_ONLY === 'true' || process.env.NOTIFICATIONS_LOG_ONLY === '1';
     if (logOnly) {
-      console.log('[Email] NOTIFICATIONS_LOG_ONLY — transactional email is logged only, not sent via SMTP');
-    } else if (smtpOk) {
-      console.log('[Email] SMTP configured — transactional email will send to users.email');
-    } else {
-      console.log('[Email] SMTP not configured — set SMTP_HOST, SMTP_USER, SMTP_PASS for real sends');
+      console.log('[Email] NOTIFICATIONS_LOG_ONLY — email is logged only, not sent');
     }
   });
 }
