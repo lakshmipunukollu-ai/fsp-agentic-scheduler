@@ -31,7 +31,9 @@ if (EMAIL_ENABLED && nodemailer) {
     port: SMTP_PORT,
     secure: SMTP_PORT === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
+    // Railway blocks outbound IPv6 — force IPv4
+    family: 4,
+  } as Parameters<typeof nodemailer.createTransport>[0]);
 }
 
 let twilioClient: ReturnType<typeof twilio> | null = null;

@@ -394,13 +394,16 @@ router.post('/request-schedule', async (req: Request, res: Response) => {
     const hoursRemaining = hoursRequired - hoursLogged;
     const nextLessonNum = Math.floor(hoursLogged / 2) + 1;
 
-    const availResult = await query(
-      `INSERT INTO student_availability (user_id, operator_id, week_start, windows, goal_hours) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [userId, operatorId, weekStart, JSON.stringify(windows), goalHours]
-    );
+    // Run availability insert + weather check in parallel
+    const [availResult, weatherMap] = await Promise.all([
+      query(
+        `INSERT INTO student_availability (user_id, operator_id, week_start, windows, goal_hours) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [userId, operatorId, weekStart, JSON.stringify(windows), goalHours]
+      ),
+      assessWeatherForDates(windows.map((w: AvailabilityWindow) => w.date)),
+    ]);
     const availabilityId = availResult.rows[0].id;
 
-    const weatherMap = await assessWeatherForDates(windows.map((w: AvailabilityWindow) => w.date));
     const windowsWithWeather = windows.map((w: AvailabilityWindow) => {
       const wx = weatherMap.get(w.date);
       return { ...w, weatherOk: wx?.pass ?? true, weatherNote: wx?.condition ?? 'VFR' };
@@ -497,37 +500,29 @@ Return ONLY valid JSON array:
     );
 
     const reqRow = requestResult.rows[0] as { id: string };
-    await AuditService.log(operatorId, 'student_schedule_request', `student:${userId}`, suggestionResult.rows[0].id, {
-      requestId: reqRow.id,
-      studentName: profile.name,
-      goalHours,
-      lessons: aiSchedule.length,
-      slots: summarizeSlotsForAudit(aiSchedule),
-    });
-    await query(
-      `INSERT INTO notifications (operator_id, user_id, type, title, body, payload)
-       VALUES ($1, $2, 'schedule_request_ready', $3, $4, $5)`,
-      [
-        operatorId,
-        userId,
-        'Schedule draft ready',
-        `We generated ${aiSchedule.length} proposed lesson${aiSchedule.length === 1 ? '' : 's'} (${goalHours}h goal). Review and edit if needed, then submit for staff approval.`,
-        JSON.stringify({ requestId: reqRow.id, lessonCount: aiSchedule.length, goalHours }),
-      ]
-    );
 
-    await NotificationService.sendStudentTransactionalEmail({
-      operatorId,
-      userId,
-      studentName: profile.name,
-      subject: 'Your schedule draft is ready',
-      html: `<p>Hi ${escapeHtml(profile.name)},</p>
-<p>We generated <strong>${aiSchedule.length}</strong> proposed lesson(s) toward your <strong>${goalHours}h</strong> goal. Review and edit in the student portal, then submit for staff approval.</p>`,
-      context: 'schedule_draft_ready',
-    });
-
-
+    // Respond immediately — fire audit/notification/email in background
     res.json({ request: requestResult.rows[0], schedule: aiSchedule, weatherWarnings: windowsWithWeather.filter((w: any) => !w.weatherOk).map((w: any) => `${w.date}: ${w.weatherNote}`) });
+
+    const lessonCount = aiSchedule.length;
+    void Promise.all([
+      AuditService.log(operatorId, 'student_schedule_request', `student:${userId}`, suggestionResult.rows[0].id, {
+        requestId: reqRow.id, studentName: profile.name, goalHours,
+        lessons: lessonCount, slots: summarizeSlotsForAudit(aiSchedule),
+      }),
+      query(
+        `INSERT INTO notifications (operator_id, user_id, type, title, body, payload) VALUES ($1, $2, 'schedule_request_ready', $3, $4, $5)`,
+        [operatorId, userId, 'Schedule draft ready',
+          `We generated ${lessonCount} proposed lesson${lessonCount === 1 ? '' : 's'} (${goalHours}h goal). Review and edit if needed, then submit for staff approval.`,
+          JSON.stringify({ requestId: reqRow.id, lessonCount, goalHours })]
+      ),
+      NotificationService.sendStudentTransactionalEmail({
+        operatorId, userId, studentName: profile.name,
+        subject: 'Your schedule draft is ready',
+        html: `<p>Hi ${escapeHtml(profile.name)},</p><p>We generated <strong>${lessonCount}</strong> proposed lesson(s) toward your <strong>${goalHours}h</strong> goal. Review and edit in the student portal, then submit for staff approval.</p>`,
+        context: 'schedule_draft_ready',
+      }),
+    ]);
   } catch (error) { console.error('Request schedule error:', error); res.status(500).json({ error: 'Failed to generate schedule' }); }
 });
 
