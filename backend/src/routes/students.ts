@@ -505,7 +505,7 @@ Return ONLY valid JSON array:
     res.json({ request: requestResult.rows[0], schedule: aiSchedule, weatherWarnings: windowsWithWeather.filter((w: any) => !w.weatherOk).map((w: any) => `${w.date}: ${w.weatherNote}`) });
 
     const lessonCount = aiSchedule.length;
-    void Promise.all([
+    Promise.all([
       AuditService.log(operatorId, 'student_schedule_request', `student:${userId}`, suggestionResult.rows[0].id, {
         requestId: reqRow.id, studentName: profile.name, goalHours,
         lessons: lessonCount, slots: summarizeSlotsForAudit(aiSchedule),
@@ -522,7 +522,7 @@ Return ONLY valid JSON array:
         html: `<p>Hi ${escapeHtml(profile.name)},</p><p>We generated <strong>${lessonCount}</strong> proposed lesson(s) toward your <strong>${goalHours}h</strong> goal. Review and edit in the student portal, then submit for staff approval.</p>`,
         context: 'schedule_draft_ready',
       }),
-    ]);
+    ]).catch(e => console.error('[schedule background]', e instanceof Error ? e.message : e));
   } catch (error) { console.error('Request schedule error:', error); res.status(500).json({ error: 'Failed to generate schedule' }); }
 });
 
