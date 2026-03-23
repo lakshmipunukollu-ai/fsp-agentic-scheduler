@@ -338,7 +338,6 @@ function NotificationPreferences() {
       {loading ? <div style={{ color: '#94a3b8', fontSize: 13 }}>Loading...</div> : (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' as const, marginBottom: 12 }}>
           {([
-            { key: 'sms' as const, label: 'SMS', desc: 'Text message for booking confirmations (requires Twilio)' },
             { key: 'email' as const, label: 'Email', desc: 'Email for approvals and reminders' },
             { key: 'in_app' as const, label: 'In-App', desc: 'Portal notifications' },
           ]).map(opt => (
@@ -1317,7 +1316,7 @@ export default function StudentPortal() {
           <div>
             <h2 style={styles.requestTitle}>Account</h2>
             <p style={{ fontSize: 13, color: '#64748b', marginTop: 0, marginBottom: 16, maxWidth: 520 }}>
-              Update the email and phone your school uses for alerts. Changing email also changes how you sign in.
+              Update the email your school uses for notifications. Changing email also changes how you sign in.
             </p>
             <AccountContact />
             <NotificationPreferences />

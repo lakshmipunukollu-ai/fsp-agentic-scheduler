@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
 /**
- * Lets any signed-in user set email (login + notification recipient) and phone (SMS).
+ * Lets any signed-in user set their login email and mobile phone number on file.
  */
 export default function AccountContact() {
   const { syncUserFromServer } = useAuth();
@@ -54,7 +54,7 @@ export default function AccountContact() {
     <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
       <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Contact &amp; login email</div>
       <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14, lineHeight: 1.45 }}>
-        We send lesson emails to your email and texts to your mobile when your school uses those channels. Changing email also changes how you sign in.
+        We send lesson emails to your email address. Changing your email also changes how you sign in.
       </div>
       {loading ? (
         <div style={{ color: '#94a3b8', fontSize: 13 }}>Loading...</div>
