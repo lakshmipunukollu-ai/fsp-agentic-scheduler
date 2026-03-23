@@ -296,10 +296,12 @@ export default function ApprovalQueue({ focusSuggestionId }: { focusSuggestionId
   }, [statusFilter, loadSuggestions]);
 
   const handleApprove = async (id: string) => {
+    setSuggestions(prev => prev.filter(s => s.id !== id));
     try {
       await api.approveSuggestion(id);
       loadSuggestions();
     } catch (err: unknown) {
+      loadSuggestions();
       alert(err instanceof Error ? err.message : 'Failed');
     }
   };
@@ -319,13 +321,16 @@ export default function ApprovalQueue({ focusSuggestionId }: { focusSuggestionId
 
   const confirmDecline = async () => {
     if (!showDeclineModal) return;
+    const id = showDeclineModal;
+    setSuggestions(prev => prev.filter(s => s.id !== id));
+    setShowDeclineModal(null);
+    setDeclineReason('');
+    setDeclineExplanation('');
     try {
-      await api.declineSuggestion(showDeclineModal, declineReason || undefined);
-      setShowDeclineModal(null);
-      setDeclineReason('');
-      setDeclineExplanation('');
+      await api.declineSuggestion(id, declineReason || undefined);
       loadSuggestions();
     } catch (err: unknown) {
+      loadSuggestions();
       alert(err instanceof Error ? err.message : 'Failed');
     }
   };
