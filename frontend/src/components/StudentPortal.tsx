@@ -770,6 +770,26 @@ export default function StudentPortal() {
   const dateRange = useMemo(() => getDateRangeDays(rangeStartOffset, horizonDays), [rangeStartOffset, horizonDays]);
   const weekStart = dateRange[0] ?? new Date().toISOString().split('T')[0];
 
+  // If another tab logs in as a different user, the localStorage token changes. Detect this
+  // and log out gracefully rather than making API calls with the wrong token.
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'user' && e.newValue) {
+        try {
+          const newUser = JSON.parse(e.newValue) as { id: string };
+          if (user && newUser.id !== user.id) {
+            logout();
+          }
+        } catch { /* ignore */ }
+      }
+      if (e.key === 'token' && !e.newValue) {
+        logout();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [user, logout]);
+
   useEffect(() => {
     loadProfile();
   }, []);

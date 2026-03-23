@@ -26,26 +26,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  // Parse and hydrate session from localStorage (used on init and cross-tab sync)
+  const hydrateFromStorage = () => {
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     if (savedToken && savedUser) {
-      setToken(savedToken);
       try {
-        setUser(JSON.parse(savedUser));
+        const parsedUser = JSON.parse(savedUser) as User;
+        setToken(savedToken);
+        setUser(parsedUser);
+        return parsedUser;
       } catch {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
       }
+    } else {
+      setToken(null);
+      setUser(null);
     }
+    return null;
+  };
+
+  useEffect(() => {
+    hydrateFromStorage();
     setIsLoading(false);
+
+    // When another tab logs in as a different user (or logs out), sync this tab immediately
+    // instead of silently failing API calls with a mismatched token.
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'token' || e.key === 'user') {
+        hydrateFromStorage();
+      }
+    };
 
     const handleUnauthorized = () => {
       setToken(null);
       setUser(null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
     };
+
+    window.addEventListener('storage', handleStorageChange);
     window.addEventListener('auth:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
