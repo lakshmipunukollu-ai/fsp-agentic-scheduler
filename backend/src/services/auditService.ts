@@ -50,4 +50,24 @@ export class AuditService {
       total: parseInt(countResult.rows[0].count, 10),
     };
   }
+
+  /** Counts for the current local calendar day (server TZ) — used for Activity Feed summary tiles. */
+  static async getTodaySummary(
+    operatorId: string
+  ): Promise<{ total: number; byType: Record<string, number> }> {
+    const result = await query(
+      `SELECT event_type, COUNT(*)::int AS cnt
+       FROM audit_log
+       WHERE operator_id = $1 AND created_at >= date_trunc('day', now())
+       GROUP BY event_type`,
+      [operatorId]
+    );
+    const byType: Record<string, number> = {};
+    let total = 0;
+    for (const row of result.rows as { event_type: string; cnt: number }[]) {
+      byType[row.event_type] = row.cnt;
+      total += row.cnt;
+    }
+    return { total, byType };
+  }
 }

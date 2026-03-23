@@ -9,9 +9,22 @@ jest.mock('../db/connection', () => ({
   closePool: jest.fn(),
 }));
 
+jest.mock('../services/operatorService', () => ({
+  OperatorService: {
+    getConfig: jest.fn().mockResolvedValue({ avgLessonPriceUsd: 185 }),
+  },
+}));
+
 import { query } from '../db/connection';
 
 const mockQuery = query as jest.MockedFunction<typeof query>;
+
+function mockRow(fields: Record<string, unknown>) {
+  return { rows: [fields], rowCount: 1, command: '', oid: 0, fields: [] } as any;
+}
+function mockRows(rows: Record<string, unknown>[]) {
+  return { rows, rowCount: rows.length, command: '', oid: 0, fields: [] } as any;
+}
 
 function makeToken(role: string = 'admin', operatorId: string = 'op1') {
   return jwt.sign({ sub: 'u1', role, operatorId }, config.jwtSecret, { expiresIn: 3600 });
@@ -29,19 +42,26 @@ describe('Dashboard Routes', () => {
     });
 
     it('should return dashboard stats', async () => {
+      // Promise.all fires all 10 in parallel; mockResolvedValueOnce is consumed in call order
       mockQuery
-        .mockResolvedValueOnce({ rows: [{ count: '5' }], rowCount: 1, command: '', oid: 0, fields: [] } as any)  // pending
-        .mockResolvedValueOnce({ rows: [{ count: '3' }], rowCount: 1, command: '', oid: 0, fields: [] } as any)  // approved today
-        .mockResolvedValueOnce({ rows: [{ count: '1' }], rowCount: 1, command: '', oid: 0, fields: [] } as any)  // declined today
-        .mockResolvedValueOnce({ rows: [{ avg_hours: '2.5' }], rowCount: 1, command: '', oid: 0, fields: [] } as any)  // avg time
-        .mockResolvedValueOnce({
-          rows: [
-            { type: 'waitlist', count: '4' },
-            { type: 'reschedule', count: '2' },
-            { type: 'discovery', count: '1' },
-          ],
-          rowCount: 3, command: '', oid: 0, fields: [],
-        } as any);  // by type
+        .mockResolvedValueOnce(mockRow({ count: '5' }))          // 1. pending
+        .mockResolvedValueOnce(mockRow({ count: '3' }))          // 2. approvedToday
+        .mockResolvedValueOnce(mockRow({ count: '1' }))          // 3. declinedToday
+        .mockResolvedValueOnce(mockRow({ avg_hours: '2.5' }))    // 4. avgTime
+        .mockResolvedValueOnce(mockRows([                        // 5. byType
+          { type: 'waitlist', count: '4' },
+          { type: 'reschedule', count: '2' },
+          { type: 'discovery', count: '1' },
+        ]))
+        .mockResolvedValueOnce(mockRow({ count: '10' }))         // 6. allApproved
+        .mockResolvedValueOnce(mockRow({ count: '2' }))          // 7. allDeclined
+        .mockResolvedValueOnce(mockRow({ count: '2' }))          // 8. atRisk
+        .mockResolvedValueOnce(mockRow({ count: '0' }))          // 9. pendingStudentRequests
+        .mockResolvedValueOnce(mockRow({                         // 10. utilization
+          booked_slots: '12',
+          active_aircraft: '3',
+          active_instructors: '3',
+        }));
 
       const res = await request(app)
         .get('/api/dashboard/stats')
@@ -54,6 +74,11 @@ describe('Dashboard Routes', () => {
       expect(res.body.avgResponseTime).toBe(2.5);
       expect(res.body.suggestionsByType.waitlist).toBe(4);
       expect(res.body.suggestionsByType.reschedule).toBe(2);
+      expect(res.body.slotsFilledByAgent).toBe(10);
+      expect(res.body.revenueRecovered).toBe(1850);
+      expect(res.body.atRiskStudentCount).toBe(2);
+      expect(res.body.utilization).toBeDefined();
+      expect(res.body.utilization.activeAircraft).toBe(3);
     });
   });
 });

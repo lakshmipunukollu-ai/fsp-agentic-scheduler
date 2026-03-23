@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { query } from '../db/connection';
+import { OperatorService } from '../services/operatorService';
 
 const router = Router();
 router.use(authenticate);
 
-const AVG_LESSON_PRICE_USD = 240;
 const MINS_SAVED_PER_SUGGESTION = 30;
 
 router.get('/stats', async (req: Request, res: Response) => {
@@ -45,6 +45,9 @@ router.get('/stats', async (req: Request, res: Response) => {
       `, [operatorId]),
     ]);
 
+    const operatorConfig = await OperatorService.getConfig(operatorId);
+    const AVG_LESSON_PRICE_USD = operatorConfig.avgLessonPriceUsd || 185;
+
     const pending = parseInt(pendingResult.rows[0].count, 10);
     const slotsFilledByAgent = parseInt(allApprovedResult.rows[0].count, 10);
     const totalDeclined = parseInt(allDeclinedResult.rows[0].count, 10);
@@ -67,7 +70,7 @@ router.get('/stats', async (req: Request, res: Response) => {
       pending,
       approvedToday: parseInt(approvedTodayResult.rows[0].count, 10),
       declinedToday: parseInt(declinedTodayResult.rows[0].count, 10),
-      avgResponseTime: parseFloat(avgTimeResult.rows[0].avg_hours || '0'),
+      avgResponseTime: Math.round(parseFloat(avgTimeResult.rows[0].avg_hours || '0') * 10) / 10,
       suggestionsByType,
       aircraftFillRate,
       slotsFilledByAgent,

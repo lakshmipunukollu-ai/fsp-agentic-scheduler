@@ -9,16 +9,23 @@
     "start": "node dist/index.js",
     "test": "jest --forceExit --detectOpenHandles",
     "seed": "ts-node src/db/seed.ts",
-    "migrate": "ts-node src/db/migrate.ts"
+    "migrate": "ts-node src/db/migrate.ts",
+    "test:sms": "ts-node scripts/test-twilio-sms.ts",
+    "test:email": "ts-node scripts/test-smtp-email.ts",
+    "test:email:demo": "ts-node scripts/test-smtp-email.ts --demo",
+    "test:notifications:log": "ts-node scripts/test-notifications-log-only.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@types/nodemailer": "^7.0.11",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^8.0.3",
     "pg": "^8.12.0",
+    "twilio": "^5.13.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

@@ -119,6 +119,9 @@ export const api = {
     return request<{ data: unknown[]; total: number }>(`/audit-log${qs ? `?${qs}` : ''}`);
   },
 
+  getAuditTodaySummary: () =>
+    request<{ total: number; byType: Record<string, number> }>('/audit-log/today-summary'),
+
   // Operators
   getOperatorConfig: (id: string) =>
     request<{ data: unknown }>(`/operators/${id}/config`),
@@ -150,6 +153,24 @@ export const api = {
       body: JSON.stringify({ suggestionId }),
     }),
 
+  // Insights / analytics
+  getInsights: () =>
+    request<{
+      overallAcceptanceRate: number;
+      totalApproved: number;
+      totalDeclined: number;
+      byType: Array<{ type: string; approved: string; declined: string; total: string; acceptance_rate: string }>;
+      byConfidence: Array<{ confidence: string; approved: string; declined: string; total: string; acceptance_rate: string }>;
+      topDeclineReasons: Array<{ reason: string; count: string }>;
+      dailyTrend: Array<{ day: string; approved: string; declined: string; rate: string }>;
+    }>('/insights'),
+
+  // Bulk approve high confidence
+  approveHighConfidence: () =>
+    request<{ approved: number; failed: string[] }>('/suggestions/bulk-approve-high-confidence', {
+      method: 'POST',
+    }),
+
   // Students
   getStudentProfile: () =>
     request<{ profile: unknown; lessons: unknown[]; recentRequests: unknown[]; progress: { hoursLogged: number; hoursScheduled: number; hoursRequired: number; hoursRemaining: number; completionPct: number; paceStatus: string; paceDiff: number; projectedGradDate: string } }>('/students/profile'),
@@ -157,10 +178,34 @@ export const api = {
   getStudentCalendar: () =>
     request<{ lessons: unknown[] }>('/students/calendar'),
 
-  requestSchedule: (data: { windows: { date: string; startTime: string; endTime: string }[]; goalHours: number; weekStart: string }) =>
-    request<{ request: unknown; schedule: unknown[] }>('/students/request-schedule', {
+  requestSchedule: (data: {
+    windows: { date: string; startTime: string; endTime: string }[];
+    goalHours: number;
+    weekStart: string;
+    horizonDays?: number;
+    rangeStartOffset?: number;
+  }) =>
+    request<{ request: { id: string }; schedule: unknown[] }>('/students/request-schedule', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  submitLessonRequestSchedule: (requestId: string, data: { aiSchedule: unknown[] }) =>
+    request<{ ok: boolean; suggestionId: string | null }>(`/students/lesson-requests/${requestId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  saveLessonRequestDraft: (requestId: string, data: { aiSchedule: unknown[] }) =>
+    request<{ ok: boolean; unchanged?: boolean }>(`/students/lesson-requests/${requestId}/draft`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  cancelStudentLesson: (lessonId: string, data?: { reason?: string }) =>
+    request<{ ok: boolean; suggestionId: string | null; message: string }>(`/students/lessons/${lessonId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
     }),
 
   getAllStudents: () =>
@@ -172,6 +217,18 @@ export const api = {
   approveStudentRequest: (requestId: string) =>
     request<{ ok: boolean; lessonsCreated: number; lessons: unknown[] }>(`/students/approve-request/${requestId}`, { method: 'POST' }),
 
+  staffCancelLesson: (lessonId: string, data?: { reason?: string }) =>
+    request<{ ok: boolean; suggestionId: string | null; message: string }>(`/students/staff/lessons/${lessonId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+
+  declineStudentRequest: (requestId: string, reason?: string) =>
+    request<{ ok: boolean }>(`/students/decline-request/${requestId}`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
   getStudentNotifications: () =>
     request<{ notifications: unknown[] }>('/students/notifications'),
 
@@ -180,4 +237,103 @@ export const api = {
 
   getInstructorSchedule: () =>
     request<{ lessons: unknown[]; instructorName: string }>('/students/instructor-schedule'),
+
+  // Analysis
+  getGraduationRisk: () =>
+    request<{
+      data: Array<{
+        user_id: string; name: string; email: string; license_type: string;
+        hours_logged: number; hours_required: number;
+        flights_last_30_days: number; last_flight_date: string | null;
+        days_since_last_flight: number; flights_per_week: number;
+        projected_graduation_hours: number; extra_hours: number;
+        extra_cost_usd: number; risk_level: 'green' | 'yellow' | 'red';
+      }>;
+      avg_lesson_price_usd: number;
+    }>('/analysis/graduation-risk'),
+
+  getRevenueBreakdown: () =>
+    request<{
+      opportunity_found_usd: number; revenue_recovered_usd: number;
+      revenue_at_risk_usd: number; revenue_lost_cancellations_usd: number;
+      projected_loss_at_risk_students_usd: number; avg_lesson_price_usd: number; period_days: number;
+    }>('/analysis/revenue-breakdown'),
+
+  getCancellationStats: () =>
+    request<{
+      total_cancellations: number; filled_by_agent: number; recovery_rate_pct: number;
+      revenue_recovered_usd: number; revenue_still_at_risk_usd: number;
+      without_agent: { recovery_rate_pct: number; revenue_recovered_usd: number; avg_fill_time_hours: number | null };
+      with_agent: { recovery_rate_pct: number; revenue_recovered_usd: number; avg_fill_time_hours: number | null };
+    }>('/analysis/cancellation-stats'),
+
+  simulateCancellation: () =>
+    request<{ cancellation: unknown; suggestion: unknown; message: string }>('/analysis/simulate-cancellation', {
+      method: 'POST',
+    }),
+
+  getAtRiskStudents: () =>
+    request<{
+      data: Array<{
+        user_id: string; name: string; email: string; license_type: string;
+        hours_logged: number; hours_required: number;
+        flights_last_30_days: number; last_flight_date: string | null;
+        days_since_last_flight: number;
+      }>;
+      threshold_days: number;
+    }>('/analysis/at-risk-students'),
+
+  nudgeStudent: (params: { userId: string; studentName: string; licenseType?: string; daysSinceLastFlight?: number; hoursLogged?: number }) =>
+    request<{ data: unknown }>('/analysis/nudge-student', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+
+  getAgentNarrative: () =>
+    request<{
+      narrative: string;
+      cached: boolean;
+      stats: { openings_evaluated?: number; suggestions_created: number; approved: number; declined: number; pending: number; revenue_recovered_usd: number };
+    }>('/analysis/agent-narrative'),
+
+  getLastAgentRun: () =>
+    request<{ last_run_at: string | null }>('/analysis/last-agent-run'),
+
+  getFrequencyLeaderboard: () =>
+    request<{
+      data: Array<{
+        rank: number; name: string; license_type: string;
+        hours_logged: number; hours_required: number;
+        flights_last_30_days: number; flights_per_week: number;
+        last_flight_date: string | null; pace_status: 'on_track' | 'behind' | 'at_risk';
+      }>;
+    }>('/analysis/frequency-leaderboard'),
+
+  getSchoolType: () =>
+    request<{ school_type: 'part_141' | 'part_61' }>('/analysis/operator-school-type'),
+
+  setSchoolType: (school_type: 'part_141' | 'part_61') =>
+    request<{ school_type: string }>('/analysis/operator-school-type', {
+      method: 'PATCH',
+      body: JSON.stringify({ school_type }),
+    }),
+
+  // Student notification preferences (persisted to DB)
+  getNotificationPrefs: () =>
+    request<{ sms: boolean; email: boolean; in_app: boolean }>('/students/notification-prefs'),
+
+  setNotificationPrefs: (prefs: { sms?: boolean; email?: boolean; in_app?: boolean }) =>
+    request<{ ok: boolean }>('/students/notification-prefs', {
+      method: 'PATCH',
+      body: JSON.stringify(prefs),
+    }),
+
+  getMyContact: () =>
+    request<{ email: string; phone: string | null; name: string }>('/me/contact'),
+
+  patchMyContact: (body: { email?: string; phone?: string | null }) =>
+    request<{ email: string; phone: string | null }>('/me/contact', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
 };

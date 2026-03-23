@@ -79,6 +79,34 @@ router.post('/:id/decline', requireRole('admin', 'scheduler'), async (req: Reque
   }
 });
 
+// POST /api/suggestions/bulk-approve-high-confidence — approve all pending high-confidence suggestions
+router.post('/bulk-approve-high-confidence', requireRole('admin', 'scheduler'), async (req: Request, res: Response) => {
+  try {
+    const operatorId = req.user!.operatorId;
+    const { query: dbQuery } = await import('../db/connection');
+    const result = await dbQuery(
+      `SELECT id FROM suggestions
+       WHERE operator_id = $1
+         AND status = 'pending'
+         AND rationale->>'confidence' = 'high'
+         AND NOT EXISTS (
+           SELECT 1 FROM jsonb_array_elements_text(COALESCE(rationale->'constraintsEvaluated', '[]'::jsonb)) AS c
+           WHERE c ILIKE '%FAIL%'
+         )`,
+      [operatorId]
+    );
+    const ids = result.rows.map((r: { id: string }) => r.id);
+    if (ids.length === 0) {
+      res.json({ approved: 0, failed: [], message: 'No high-confidence suggestions available' });
+      return;
+    }
+    const approveResult = await SuggestionService.bulkApprove(operatorId, ids, req.user!.sub);
+    res.json(approveResult);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/suggestions/bulk-approve
 router.post('/bulk-approve', requireRole('admin', 'scheduler'), async (req: Request, res: Response) => {
   try {

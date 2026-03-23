@@ -6,6 +6,18 @@ const router = Router();
 
 router.use(authenticate);
 
+// GET /api/audit-log/today-summary — accurate counts for today (not limited to paginated list)
+router.get('/today-summary', async (req: Request, res: Response) => {
+  try {
+    const operatorId = req.user!.operatorId;
+    const summary = await AuditService.getTodaySummary(operatorId);
+    res.json(summary);
+  } catch (error) {
+    console.error('Get audit today-summary error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/audit-log
 router.get('/', async (req: Request, res: Response) => {
   try {

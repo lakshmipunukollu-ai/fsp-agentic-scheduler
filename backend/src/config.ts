@@ -33,4 +33,11 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5001',
   agentPollIntervalMs: parseInt(process.env.AGENT_POLL_INTERVAL_MS || '300000', 10),
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID || '',
+    authToken: process.env.TWILIO_AUTH_TOKEN || '',
+    fromNumber: process.env.TWILIO_FROM_NUMBER || '',
+  },
+  fspApiMode: (process.env.FSP_API_MODE || 'mock') as 'mock' | 'live',
+  openWeatherApiKey: process.env.OPENWEATHER_API_KEY || '',
 };

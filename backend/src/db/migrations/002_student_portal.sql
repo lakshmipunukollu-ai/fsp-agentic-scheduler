@@ -75,4 +75,14 @@ CREATE TABLE IF NOT EXISTS scheduled_lessons (
 CREATE INDEX IF NOT EXISTS idx_scheduled_lessons_user ON scheduled_lessons(user_id, start_time);
 CREATE INDEX IF NOT EXISTS idx_scheduled_lessons_operator ON scheduled_lessons(operator_id);
 
-ALTER TABLE student_profiles ADD CONSTRAINT student_profiles_user_id_unique UNIQUE (user_id);
+-- Idempotent: migrate.ts re-runs all files; constraint may already exist from a prior run
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    WHERE t.relname = 'student_profiles' AND c.conname = 'student_profiles_user_id_unique'
+  ) THEN
+    ALTER TABLE student_profiles ADD CONSTRAINT student_profiles_user_id_unique UNIQUE (user_id);
+  END IF;
+END $$;

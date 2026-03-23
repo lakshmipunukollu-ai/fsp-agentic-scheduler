@@ -1,7 +1,10 @@
+export type SchoolType = 'part_141' | 'part_61';
+
 export interface Operator {
   id: string;
   fsp_operator_id: string;
   name: string;
+  school_type: SchoolType;
   config: OperatorConfig;
   feature_flags: FeatureFlags;
   created_at: string;
@@ -18,6 +21,7 @@ export interface OperatorConfig {
   suggestionsPerOpening: number;
   searchWindowDays: number;
   expirationHours: number;
+  avgLessonPriceUsd: number;
 }
 
 export interface FeatureFlags {
@@ -27,7 +31,7 @@ export interface FeatureFlags {
   auto_approve_low_risk: boolean;
 }
 
-export type SuggestionType = 'waitlist' | 'reschedule' | 'discovery' | 'next_lesson';
+export type SuggestionType = 'waitlist' | 'reschedule' | 'discovery' | 'next_lesson' | 'at_risk_nudge';
 export type SuggestionStatus = 'pending' | 'approved' | 'declined' | 'expired';
 export type UserRole = 'admin' | 'scheduler' | 'viewer' | 'student' | 'instructor';
 
@@ -44,6 +48,8 @@ export interface Suggestion {
   created_at: string;
   reviewed_at?: string;
   reviewed_by?: string;
+  retry_count?: number;
+  candidates_tried?: number;
 }
 
 export interface SuggestionPayload {
@@ -53,10 +59,13 @@ export interface SuggestionPayload {
   instructorName?: string;
   aircraftId?: string;
   aircraftTail?: string;
-  startTime: string;
-  endTime: string;
+  startTime?: string;
+  endTime?: string;
   lessonType?: string;
   locationId?: string;
+  actionType?: string;
+  /** When set, approving from the queue finalizes the student schedule request (lesson_requests + scheduled_lessons). */
+  lessonRequestId?: string;
 }
 
 export interface SuggestionRationale {
@@ -65,6 +74,8 @@ export interface SuggestionRationale {
   constraintsEvaluated: string[];
   alternativesConsidered: number;
   confidence: 'high' | 'medium' | 'low';
+  summary?: string;
+  conflictsWith?: string[];
 }
 
 export interface CandidateScore {
@@ -153,7 +164,43 @@ export interface StudentProfile {
   instructor_name: string;
   aircraft_tail: string;
   program_start_date: string;
+  last_flight_date?: string;
+  flights_last_30_days?: number;
   created_at: string;
+}
+
+export interface GraduationRiskStudent {
+  user_id: string;
+  name: string;
+  email: string;
+  license_type: LicenseType;
+  hours_logged: number;
+  hours_required: number;
+  flights_last_30_days: number;
+  last_flight_date: string | null;
+  days_since_last_flight: number;
+  flights_per_week: number;
+  projected_graduation_hours: number;
+  extra_hours: number;
+  extra_cost_usd: number;
+  risk_level: 'green' | 'yellow' | 'red';
+}
+
+export interface CancellationStats {
+  total_cancellations: number;
+  filled_by_agent: number;
+  recovery_rate_pct: number;
+  revenue_recovered_usd: number;
+  revenue_still_at_risk_usd: number;
+}
+
+export interface RevenueBreakdown {
+  opportunity_found_usd: number;
+  revenue_recovered_usd: number;
+  revenue_at_risk_usd: number;
+  revenue_lost_cancellations_usd: number;
+  projected_loss_at_risk_students_usd: number;
+  avg_lesson_price_usd: number;
 }
 
 export interface AvailabilityWindow {
@@ -209,6 +256,7 @@ export const DEFAULT_OPERATOR_CONFIG: OperatorConfig = {
   suggestionsPerOpening: 3,
   searchWindowDays: 7,
   expirationHours: 24,
+  avgLessonPriceUsd: 185,
 };
 
 export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {

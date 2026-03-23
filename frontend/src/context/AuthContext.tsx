@@ -8,6 +8,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
+  /** After PATCH /api/me/contact — keeps session email/phone in sync with server */
+  syncUserFromServer: (partial: Partial<Pick<User, 'email' | 'phone'>>) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -16,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   logout: () => {},
   isLoading: true,
+  syncUserFromServer: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -67,8 +70,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('user');
   };
 
+  const syncUserFromServer = (partial: Partial<Pick<User, 'email' | 'phone'>>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const next = { ...prev, ...partial };
+      try {
+        localStorage.setItem('user', JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isLoading, syncUserFromServer }}>
       {children}
     </AuthContext.Provider>
   );

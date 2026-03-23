@@ -50,6 +50,12 @@ export default function AdminStudents() {
   const [studentDetail, setStudentDetail] = useState<StudentDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailView, setDetailView] = useState<'overview' | 'detail'>('overview');
+  const [cancelingLesson, setCancelingLesson] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelLessonId, setCancelLessonId] = useState<string | null>(null);
+  const [decliningRequest, setDecliningRequest] = useState<string | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
+  const [declineRequestId, setDeclineRequestId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -80,6 +86,43 @@ export default function AdminStudents() {
       const detail = await api.getStudentDetailForAdmin(student.user_id);
       setStudentDetail(detail as StudentDetail);
     } finally { setDetailLoading(false); }
+  };
+
+  const reloadDetail = async () => {
+    if (!selectedStudent) return;
+    const detail = await api.getStudentDetailForAdmin(selectedStudent.user_id);
+    setStudentDetail(detail as StudentDetail);
+    loadStudentsSilent();
+  };
+
+  const handleCancelLesson = async (lessonId: string, reason: string) => {
+    setCancelingLesson(lessonId);
+    try {
+      await api.staffCancelLesson(lessonId, { reason: reason || undefined });
+      setCancelLessonId(null);
+      setCancelReason('');
+      await reloadDetail();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to cancel lesson');
+    } finally {
+      setCancelingLesson(null);
+    }
+  };
+
+  const handleDeclineRequest = async (requestId: string, reason: string) => {
+    setDecliningRequest(requestId);
+    try {
+      // Decline via the suggestions endpoint — find the matching suggestion
+      // Fall back to a direct lesson-request decline if no suggestion exists
+      await api.declineStudentRequest(requestId, reason || undefined);
+      setDeclineRequestId(null);
+      setDeclineReason('');
+      await reloadDetail();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to decline request');
+    } finally {
+      setDecliningRequest(null);
+    }
   };
 
   const instructors = [...new Set(students.map(s => s.instructor_name))];
@@ -204,25 +247,38 @@ export default function AdminStudents() {
                   <th style={s.miniTh}>Instructor</th>
                   <th style={s.miniTh}>Aircraft</th>
                   <th style={s.miniTh}>Status</th>
+                  <th style={s.miniTh}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {studentDetail.lessons.length === 0 && (
-                  <tr><td colSpan={5} style={{ ...s.miniTd, textAlign: 'center', color: '#94a3b8', padding: '24px' }}>No lessons yet</td></tr>
+                  <tr><td colSpan={6} style={{ ...s.miniTd, textAlign: 'center', color: '#94a3b8', padding: '24px' }}>No lessons yet</td></tr>
                 )}
-                {studentDetail.lessons.map((lesson: any, i: number) => (
-                  <tr key={i} style={i % 2 === 0 ? {} : s.miniTrAlt}>
-                    <td style={s.miniTd}>{formatDate(lesson.start_time)}</td>
-                    <td style={s.miniTd}>{lesson.lesson_type}</td>
-                    <td style={s.miniTd}>{lesson.instructor_name}</td>
-                    <td style={s.miniTd}>{lesson.aircraft_tail}</td>
-                    <td style={s.miniTd}>
-                      <span style={{ ...s.statusPill, ...(lesson.status === 'completed' ? { background: '#f1f5f9', color: '#475569' } : lesson.status === 'confirmed' ? { background: '#dcfce7', color: '#15803d' } : { background: '#fef9c3', color: '#854d0e' }) }}>
-                        {lesson.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {studentDetail.lessons.map((lesson: any, i: number) => {
+                  const isFuture = new Date(lesson.start_time) > new Date();
+                  const canCancel = lesson.status === 'confirmed' && isFuture;
+                  return (
+                    <tr key={i} style={i % 2 === 0 ? {} : s.miniTrAlt}>
+                      <td style={s.miniTd}>{formatDate(lesson.start_time)}</td>
+                      <td style={s.miniTd}>{lesson.lesson_type}</td>
+                      <td style={s.miniTd}>{lesson.instructor_name}</td>
+                      <td style={s.miniTd}>{lesson.aircraft_tail}</td>
+                      <td style={s.miniTd}>
+                        <span style={{ ...s.statusPill, ...(lesson.status === 'completed' ? { background: '#f1f5f9', color: '#475569' } : lesson.status === 'confirmed' ? { background: '#dcfce7', color: '#15803d' } : lesson.status === 'cancelled' ? { background: '#fee2e2', color: '#dc2626' } : { background: '#fef9c3', color: '#854d0e' }) }}>
+                          {lesson.status}
+                        </span>
+                      </td>
+                      <td style={s.miniTd}>
+                        {canCancel && (
+                          <button
+                            style={{ ...s.actionBtn, color: '#dc2626', borderColor: '#fca5a5', fontSize: '12px', padding: '4px 10px' }}
+                            onClick={() => { setCancelLessonId(lesson.id); setCancelReason(''); }}
+                          >Cancel</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 
@@ -242,18 +298,83 @@ export default function AdminStudents() {
                         onClick={async () => {
                           try {
                             await api.approveStudentRequest(req.id);
-                            const detail = await api.getStudentDetailForAdmin(selectedStudent.user_id);
-                            setStudentDetail(detail as StudentDetail);
-                            loadStudents();
+                            await reloadDetail();
                           } catch (err: unknown) { alert(err instanceof Error ? err.message : 'Failed'); }
                         }}
                       >✓ Approve All Lessons</button>
-                      <button style={s.actionBtn}>✗ Decline</button>
+                      <button
+                        style={{ ...s.actionBtn, color: '#dc2626', borderColor: '#fca5a5' }}
+                        onClick={() => { setDeclineRequestId(req.id); setDeclineReason(''); }}
+                      >✗ Decline</button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Cancel lesson modal */}
+        {cancelLessonId && (
+          <div style={s.modalOverlay}>
+            <div style={s.modal}>
+              <h3 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>Cancel Lesson</h3>
+              <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#64748b' }}>
+                The student will be notified by email and in-app. An open-slot fill suggestion will be added to the queue.
+              </p>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                Reason <span style={{ fontWeight: 400, color: '#94a3b8' }}>(optional)</span>
+              </label>
+              <input
+                autoFocus
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                placeholder="e.g. Instructor unavailable, weather hold…"
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', marginBottom: '16px' }}
+              />
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button style={s.actionBtn} onClick={() => setCancelLessonId(null)}>Keep lesson</button>
+                <button
+                  disabled={cancelingLesson === cancelLessonId}
+                  style={{ ...s.actionBtn, background: '#dc2626', color: '#fff', border: 'none', opacity: cancelingLesson === cancelLessonId ? 0.6 : 1 }}
+                  onClick={() => handleCancelLesson(cancelLessonId, cancelReason)}
+                >
+                  {cancelingLesson === cancelLessonId ? 'Cancelling…' : 'Confirm cancellation'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Decline schedule request modal */}
+        {declineRequestId && (
+          <div style={s.modalOverlay}>
+            <div style={s.modal}>
+              <h3 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>Decline Schedule Request</h3>
+              <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#64748b' }}>
+                The student will be notified by email with the reason below.
+              </p>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                Reason <span style={{ fontWeight: 400, color: '#94a3b8' }}>(optional)</span>
+              </label>
+              <input
+                autoFocus
+                value={declineReason}
+                onChange={e => setDeclineReason(e.target.value)}
+                placeholder="e.g. Aircraft not available, please submit new dates…"
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', marginBottom: '16px' }}
+              />
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button style={s.actionBtn} onClick={() => setDeclineRequestId(null)}>Go back</button>
+                <button
+                  disabled={decliningRequest === declineRequestId}
+                  style={{ ...s.actionBtn, background: '#dc2626', color: '#fff', border: 'none', opacity: decliningRequest === declineRequestId ? 0.6 : 1 }}
+                  onClick={() => handleDeclineRequest(declineRequestId, declineReason)}
+                >
+                  {decliningRequest === declineRequestId ? 'Declining…' : 'Confirm decline'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -472,4 +593,7 @@ const s: Record<string, React.CSSProperties> = {
   miniTrAlt: { background: '#fafafa' },
 
   reqCard: { background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', padding: '14px', marginBottom: '8px' },
+
+  modalOverlay: { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
+  modal: { background: '#fff', borderRadius: '10px', padding: '24px', width: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' },
 };

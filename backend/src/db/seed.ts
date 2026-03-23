@@ -25,6 +25,7 @@ async function seed() {
   await pool.query(`DELETE FROM student_availability`);
   await pool.query(`DELETE FROM student_profiles`);
   await pool.query(`DELETE FROM audit_log`);
+  await pool.query(`DELETE FROM cancellation_events`);
   await pool.query(`DELETE FROM suggestions`);
   await pool.query(`DELETE FROM users WHERE email NOT IN ('system')`);
 
@@ -181,15 +182,35 @@ async function seed() {
   }
 
   // --- STUDENT USERS & PROFILES ---
+  // 11 students with a wide spread of pace/risk/license to make all analysis panels compelling
   const students = [
-    { name: 'Emma Wilson', email: 'emma@skyhigh.com', password: 'student123', license: 'PPL', hoursLogged: 37, hoursRequired: 70, daysAgoStart: 45 },
-    { name: 'Carlos Rivera', email: 'carlos@skyhigh.com', password: 'student123', license: 'CPL', hoursLogged: 112, hoursRequired: 250, daysAgoStart: 120 },
-    { name: 'Sophie Chen', email: 'sophie@skyhigh.com', password: 'student123', license: 'IR', hoursLogged: 28, hoursRequired: 115, daysAgoStart: 60 },
-    { name: 'Marcus Johnson', email: 'marcus@skyhigh.com', password: 'student123', license: 'PPL', hoursLogged: 8, hoursRequired: 70, daysAgoStart: 30 },
+    // On-track / high frequency
+    { name: 'Emma Wilson',      email: 'emma@skyhigh.com',      password: 'student123', license: 'PPL', hoursLogged: 37,  hoursRequired: 70,  daysAgoStart: 45,  flightsLast30: 12, lastFlightDaysAgo: 2  },
+    { name: 'Aisha Patel',      email: 'aisha@skyhigh.com',     password: 'student123', license: 'PPL', hoursLogged: 52,  hoursRequired: 70,  daysAgoStart: 60,  flightsLast30: 10, lastFlightDaysAgo: 1  },
+    { name: 'James Kowalski',   email: 'james@skyhigh.com',     password: 'student123', license: 'CPL', hoursLogged: 185, hoursRequired: 250, daysAgoStart: 180, flightsLast30: 9,  lastFlightDaysAgo: 3  },
+    // Behind pace — moderate risk
+    { name: 'Carlos Rivera',    email: 'carlos@skyhigh.com',    password: 'student123', license: 'CPL', hoursLogged: 112, hoursRequired: 250, daysAgoStart: 120, flightsLast30: 5,  lastFlightDaysAgo: 9  },
+    { name: 'Taylor Brooks',    email: 'taylor@skyhigh.com',    password: 'student123', license: 'IR',  hoursLogged: 45,  hoursRequired: 115, daysAgoStart: 90,  flightsLast30: 4,  lastFlightDaysAgo: 6  },
+    { name: 'Priya Menon',      email: 'priya@skyhigh.com',     password: 'student123', license: 'PPL', hoursLogged: 22,  hoursRequired: 70,  daysAgoStart: 50,  flightsLast30: 3,  lastFlightDaysAgo: 8  },
+    // At risk — low frequency, idle 7-21 days
+    { name: 'Sophie Chen',      email: 'sophie@skyhigh.com',    password: 'student123', license: 'IR',  hoursLogged: 28,  hoursRequired: 115, daysAgoStart: 60,  flightsLast30: 2,  lastFlightDaysAgo: 18 },
+    { name: 'Derek Williams',   email: 'derek@skyhigh.com',     password: 'student123', license: 'PPL', hoursLogged: 15,  hoursRequired: 70,  daysAgoStart: 55,  flightsLast30: 1,  lastFlightDaysAgo: 14 },
+    { name: 'Lena Fischer',     email: 'lena@skyhigh.com',      password: 'student123', license: 'CPL', hoursLogged: 78,  hoursRequired: 250, daysAgoStart: 95,  flightsLast30: 2,  lastFlightDaysAgo: 12 },
+    // High risk — very idle or just starting
+    { name: 'Marcus Johnson',   email: 'marcus@skyhigh.com',    password: 'student123', license: 'PPL', hoursLogged: 8,   hoursRequired: 70,  daysAgoStart: 30,  flightsLast30: 0,  lastFlightDaysAgo: 30 },
+    { name: 'Ryan Okafor',      email: 'ryan@skyhigh.com',      password: 'student123', license: 'PPL', hoursLogged: 5,   hoursRequired: 70,  daysAgoStart: 20,  flightsLast30: 0,  lastFlightDaysAgo: 22 },
   ];
 
-  const instructors = ['Capt. Sarah Johnson', 'Capt. Mike Rogers', 'Capt. Lisa Park', 'Capt. Sarah Johnson'];
-  const aircraft = ['N12345', 'N67890', 'N11223', 'N12345'];
+  const instructors = [
+    'Capt. Sarah Johnson', 'Capt. Mike Rogers', 'Capt. Lisa Park', 'Capt. Sarah Johnson',
+    'Capt. Mike Rogers', 'Capt. Lisa Park', 'Capt. Sarah Johnson', 'Capt. Mike Rogers',
+    'Capt. Lisa Park', 'Capt. Sarah Johnson', 'Capt. Mike Rogers',
+  ];
+  const aircraft = [
+    'N12345', 'N67890', 'N11223', 'N12345',
+    'N67890', 'N11223', 'N12345', 'N67890',
+    'N11223', 'N12345', 'N67890',
+  ];
 
   for (let i = 0; i < students.length; i++) {
     const s = students[i];
@@ -197,6 +218,8 @@ async function seed() {
     const hash = await bcrypt.hash(s.password, 10);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - s.daysAgoStart);
+    const lastFlightDate = new Date();
+    lastFlightDate.setDate(lastFlightDate.getDate() - s.lastFlightDaysAgo);
 
     await pool.query(
       `INSERT INTO users (id, operator_id, email, password_hash, name, role)
@@ -208,22 +231,48 @@ async function seed() {
     const uid = userResult.rows[0].id;
 
     await pool.query(
-      `INSERT INTO student_profiles (user_id, operator_id, license_type, hours_logged, hours_scheduled, hours_required, lessons_per_week_target, instructor_name, aircraft_tail, program_start_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       ON CONFLICT (user_id) DO UPDATE SET hours_logged = $4`,
-      [uid, opId, s.license, s.hoursLogged, s.hoursLogged * 0.1, s.hoursRequired, 2, instructors[i], aircraft[i], startDate.toISOString().split('T')[0]]
+      `INSERT INTO student_profiles
+         (user_id, operator_id, license_type, hours_logged, hours_scheduled, hours_required,
+          lessons_per_week_target, instructor_name, aircraft_tail, program_start_date,
+          flights_last_30_days, last_flight_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       ON CONFLICT (user_id) DO UPDATE SET
+         hours_logged = $4, flights_last_30_days = $11, last_flight_date = $12`,
+      [uid, opId, s.license, s.hoursLogged, s.hoursLogged * 0.1, s.hoursRequired,
+       2, instructors[i], aircraft[i], startDate.toISOString().split('T')[0],
+       s.flightsLast30, lastFlightDate.toISOString().split('T')[0]]
     ).catch(() => {});
 
-    // Add a few completed lessons
-    for (let j = 0; j < Math.min(5, Math.floor(s.hoursLogged / 4)); j++) {
+    // Add completed lessons anchored to lastFlightDaysAgo.
+    // Lessons within 30-day window are spread from lastFlightDaysAgo → lastFlightDaysAgo+28.
+    // Older history goes back further for total hours context.
+    const olderLessons = Math.max(0, Math.floor(s.hoursLogged / 2) - s.flightsLast30);
+    const allLessons = [
+      // In-window: spread s.flightsLast30 lessons across the window [lastFlightDaysAgo, 29]
+      ...Array.from({ length: s.flightsLast30 }, (_, j) => {
+        const windowSize = Math.max(0, 29 - s.lastFlightDaysAgo); // how many days available before 30-day cutoff
+        const spread = s.flightsLast30 > 1
+          ? Math.round((j / (s.flightsLast30 - 1)) * windowSize)
+          : 0;
+        return { daysBack: s.lastFlightDaysAgo + spread, label: `Lesson ${j + 1}` };
+      }),
+      // Older history: weekly lessons going further back
+      ...Array.from({ length: olderLessons }, (_, j) => ({
+        daysBack: 31 + j * 7,
+        label: `Lesson ${s.flightsLast30 + j + 1}`,
+      })),
+    ];
+    for (let j = 0; j < allLessons.length; j++) {
+      const { daysBack, label } = allLessons[j];
       const lessonDate = new Date();
-      lessonDate.setDate(lessonDate.getDate() - (j + 1) * 5);
+      lessonDate.setDate(lessonDate.getDate() - daysBack);
+      lessonDate.setHours(9 + (j % 6), 0, 0, 0);
       const endDate = new Date(lessonDate);
       endDate.setHours(endDate.getHours() + 2);
       await pool.query(
         `INSERT INTO scheduled_lessons (user_id, operator_id, lesson_type, instructor_name, aircraft_tail, start_time, end_time, status, duration_hours)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', 2)`,
-        [uid, opId, `${s.license} - Lesson ${j + 1}`, instructors[i], aircraft[i], lessonDate.toISOString(), endDate.toISOString()]
+        [uid, opId, `${s.license} - ${label}`, instructors[i], aircraft[i], lessonDate.toISOString(), endDate.toISOString()]
       );
     }
   }

@@ -6,6 +6,8 @@ export interface User {
   id: string;
   operatorId: string;
   email: string;
+  /** Set after visiting Account / contact settings */
+  phone?: string | null;
   name: string;
   role: UserRole;
 }
@@ -44,6 +46,8 @@ export interface SuggestionRationale {
   constraintsEvaluated: string[];
   alternativesConsidered: number;
   confidence: 'high' | 'medium' | 'low';
+  summary?: string;
+  conflictsWith?: string[];
 }
 
 export interface CandidateScore {
@@ -78,6 +82,17 @@ export interface OperatorConfig {
   suggestionsPerOpening: number;
   searchWindowDays: number;
   expirationHours: number;
+  avgLessonPriceUsd: number;
+}
+
+export interface InsightsData {
+  overallAcceptanceRate: number;
+  totalApproved: number;
+  totalDeclined: number;
+  byType: Array<{ type: string; approved: string; declined: string; total: string; acceptance_rate: string }>;
+  byConfidence: Array<{ confidence: string; approved: string; declined: string; total: string; acceptance_rate: string }>;
+  topDeclineReasons: Array<{ reason: string; count: string }>;
+  dailyTrend: Array<{ day: string; approved: string; declined: string; rate: string }>;
 }
 
 export interface FeatureFlags {

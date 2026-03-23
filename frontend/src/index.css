@@ -1,12 +1,76 @@
 *, *::before, *::after { box-sizing: border-box; }
 
+/* ── Light mode (default) ─────────────────────────────────────── */
+:root {
+  color-scheme: light;
+  /* Pilotbase-adjacent accents (teal/orange) — not legacy FSP blue-grid */
+  --pb-accent:      #06b6d4;
+  --pb-accent-ring: rgba(6, 182, 212, 0.35);
+  --pb-ink:         #0a0a0a;
+  --pb-table-head:  #0a0a0a;
+
+  --bg-app:       #f4f4f5;
+  --bg-surface:   #ffffff;
+  --bg-subtle:    #fafafa;
+  --border:       #e5e5e5;
+  --text-primary: #0a0a0a;
+  --text-secondary: #525252;
+  --text-muted:   #737373;
+  --sidebar-bg:   #0a0a0a;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-text: #fafafa;
+  --sidebar-hover: #171717;
+  --sidebar-active: #06b6d4;
+  --input-bg:     #ffffff;
+  --card-shadow:  0 4px 24px rgba(0,0,0,.06);
+  --bg-panel:       #ffffff;
+  --border-subtle:  #e2e8f0;
+  --skeleton-bg:    #e2e8f0;
+  --context-bar-bg: rgba(6, 182, 212, 0.06);
+  --context-bar-border: rgba(6, 182, 212, 0.2);
+}
+
+/* ── Dark mode (slate / zinc elevation — avoids flat “mush”) ─── */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --pb-table-head:  #0f172a;
+  --pb-ink:         #f1f5f9;
+
+  --bg-app:         #0f1419;
+  --bg-surface:     #161b22;
+  --bg-subtle:      #1c232d;
+  --bg-elevated:    #222b36;
+  --border:         #30363d;
+  --border-muted:   #21262d;
+
+  --text-primary:   #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted:     #6e7681;
+
+  --sidebar-bg:     #0d1117;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-text:   #f0f6fc;
+  --sidebar-hover:  #161b22;
+  --sidebar-active: #06b6d4;
+
+  --input-bg:       #161b22;
+  --input-border:   #30363d;
+  --card-shadow:    0 8px 32px rgba(0, 0, 0, 0.45);
+  --bg-panel:       #161b22;
+  --border-subtle:  #30363d;
+  --skeleton-bg:    #21262d;
+  --context-bar-bg: rgba(6, 182, 212, 0.1);
+  --context-bar-border: rgba(6, 182, 212, 0.28);
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f1f5f9;
-  color: #1e293b;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  transition: background 0.2s, color 0.2s;
 }
 
 h1, h2, h3, h4, h5, h6 { letter-spacing: -0.02em; }
@@ -28,5 +92,114 @@ input, select, textarea, button {
 table { border-collapse: collapse; }
 
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #f1f5f9; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-track { background: var(--bg-app); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Dark mode: targeted overrides (avoid broad [class*="card"] — breaks badges) */
+[data-theme="dark"] .card-surface {
+  background: var(--bg-surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border) !important;
+}
+
+/* Override white/light hardcoded backgrounds in deeply nested inline-styled divs */
+[data-theme="dark"] [style*="background: rgb(255, 255, 255)"],
+[data-theme="dark"] [style*="background: #fff"],
+[data-theme="dark"] [style*="background:#fff"],
+[data-theme="dark"] [style*="background: white"] {
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] [style*="background: rgb(248, 250, 252)"],
+[data-theme="dark"] [style*="background: #f8fafc"],
+[data-theme="dark"] [style*="background:#f8fafc"],
+[data-theme="dark"] [style*="background: rgb(241, 245, 249)"],
+[data-theme="dark"] [style*="background: #f1f5f9"],
+[data-theme="dark"] [style*="background:#f1f5f9"] {
+  background: var(--bg-subtle) !important;
+}
+
+[data-theme="dark"] [style*="border: 1px solid rgb(226, 232, 240)"],
+[data-theme="dark"] [style*="border: 1px solid #e2e8f0"],
+[data-theme="dark"] [style*="borderColor: #e2e8f0"] {
+  border-color: var(--border) !important;
+}
+
+/* Table rows in dark mode */
+[data-theme="dark"] tr td {
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] th {
+  background: var(--bg-subtle) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border) !important;
+}
+
+/* White-background table zebra rows */
+[data-theme="dark"] [style*="background: rgb(255, 255, 255)"] td,
+[data-theme="dark"] [style*="background: rgb(248, 250, 252)"] td {
+  background: inherit !important;
+}
+
+/* Muted text labels */
+[data-theme="dark"] [style*="color: rgb(100, 116, 139)"],
+[data-theme="dark"] [style*="color: #64748b"] {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] [style*="color: rgb(148, 163, 184)"],
+[data-theme="dark"] [style*="color: #94a3b8"] {
+  color: var(--text-muted) !important;
+}
+
+/* Headings */
+[data-theme="dark"] [style*="color: rgb(30, 41, 59)"],
+[data-theme="dark"] [style*="color: #1e293b"],
+[data-theme="dark"] [style*="color: #0f172a"],
+[data-theme="dark"] [style*="color: rgb(15, 23, 42)"] {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] [style*="background: rgb(15, 23, 42)"],
+[data-theme="dark"] [style*="background: #0f172a"],
+[data-theme="dark"] [style*="background: rgb(30, 41, 59)"],
+[data-theme="dark"] [style*="background: #1e293b"] {
+  background: var(--bg-surface) !important;
+}
+
+[data-theme="dark"] [style*="background: rgb(51, 65, 85)"],
+[data-theme="dark"] [style*="background: #334155"] {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] [style*="color: rgb(51, 65, 85)"],
+[data-theme="dark"] [style*="color: #334155"] {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] [style*="color: rgb(71, 85, 105)"],
+[data-theme="dark"] [style*="color: #475569"] {
+  color: var(--text-secondary) !important;
+}
+
+/* ── Print styles for Export PDF ─────────────────────────────── */
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  nav, [class*="sidebar"], [class*="Layout"], [class*="layout"] { display: none !important; }
+  button { display: none !important; }
+  .no-print { display: none !important; }
+  h3 { page-break-after: avoid; }
+  table { page-break-inside: avoid; }
+  * { box-shadow: none !important; }
+}

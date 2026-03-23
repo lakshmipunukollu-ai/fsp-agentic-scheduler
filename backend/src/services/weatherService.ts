@@ -92,10 +92,11 @@ export async function assessWeatherForLesson(
 function fallback(reason: string): WeatherAssessment {
   return {
     pass: true,
-    condition: `weather data unavailable (${reason})`,
-    description: 'unknown',
-    temp_f: 0,
-    wind_mph: 0,
+    // Explicitly label as simulated so the UI can display it accurately
+    condition: `simulated VFR — weather API unavailable (${reason})`,
+    description: 'simulated',
+    temp_f: 72,
+    wind_mph: 8,
     visibility_miles: 10,
   };
 }
