@@ -434,7 +434,7 @@ Return ONLY valid JSON array:
 }]`;
 
     const message = await anthropic.messages.create(
-      { model: 'claude-3-5-haiku-20241022', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] },
+      { model: 'claude-haiku-4-5-20251001', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] },
       { timeout: 25000 }
     );
     const responseText = message.content[0].type === 'text' ? message.content[0].text : '';

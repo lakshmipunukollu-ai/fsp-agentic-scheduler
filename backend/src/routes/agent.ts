@@ -157,7 +157,7 @@ Return a JSON array of 3 objects with this exact structure:
 ]`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -208,7 +208,7 @@ Return a JSON array of 3 objects with this exact structure:
 Facts: score ${Math.round((topCandidate?.score || 0) * 100)}/100, ${topCandidate?.signals?.daysSinceLastFlight || 0} days since last flight, ${topCandidate?.signals?.totalFlightHours || 0}h total, ${s.rationale?.alternativesConsidered || 0} candidates evaluated, confidence: ${s.rationale?.confidence}, weather: ${weather.pass ? 'clear' : 'poor'}.
 Be specific and professional. No bullet points.`;
         const nlMsg = await anthropic.messages.create({
-          model: 'claude-3-5-haiku-20241022',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 120,
           messages: [{ role: 'user', content: nlPrompt }],
         });
@@ -280,7 +280,7 @@ Suggestion details:
 Keep it concise, professional, and helpful for the dispatcher. No bullet points, just 2-3 sentences.`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 200,
       messages: [{ role: 'user', content: prompt }],
     });
