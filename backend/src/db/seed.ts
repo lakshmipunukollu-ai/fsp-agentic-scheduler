@@ -17,16 +17,18 @@ function hoursFromNow(n: number): string {
 }
 
 export async function seedDatabase(pool: Pool) {
-  // Wipe existing data in correct foreign key order
-  await pool.query(`DELETE FROM notifications`);
-  await pool.query(`DELETE FROM scheduled_lessons`);
-  await pool.query(`DELETE FROM lesson_requests`);
-  await pool.query(`DELETE FROM student_availability`);
-  await pool.query(`DELETE FROM student_profiles`);
-  await pool.query(`DELETE FROM audit_log`);
-  await pool.query(`DELETE FROM cancellation_events`);
-  await pool.query(`DELETE FROM suggestions`);
-  await pool.query(`DELETE FROM users WHERE email NOT IN ('system')`);
+  // Wipe existing data in correct foreign key order (ignore missing tables)
+  const safeDel = (sql: string) => pool.query(sql).catch(() => {});
+  await safeDel(`DELETE FROM notifications`);
+  await safeDel(`DELETE FROM scheduled_lessons`);
+  await safeDel(`DELETE FROM lesson_requests`);
+  await safeDel(`DELETE FROM student_availability`);
+  await safeDel(`DELETE FROM student_profiles`);
+  await safeDel(`DELETE FROM audit_log`);
+  await safeDel(`DELETE FROM cancellation_events`);
+  await safeDel(`DELETE FROM suggestions`);
+  await safeDel(`DELETE FROM users`);
+  await safeDel(`DELETE FROM operators`);
 
   // Create operator
   const operatorId = uuidv4();
@@ -301,13 +303,13 @@ export async function seedDatabase(pool: Pool) {
   console.log('[seed] Demo data inserted: 15 suggestions, 11 students, lessons, and notifications.');
 }
 
-/** Check if seeding is needed — true when the suggestions table is empty */
+/** Check if seeding is needed — true when the operators table is empty or missing */
 export async function needsSeed(pool: Pool): Promise<boolean> {
   try {
-    const result = await pool.query('SELECT COUNT(*)::int AS cnt FROM suggestions');
+    const result = await pool.query('SELECT COUNT(*)::int AS cnt FROM operators');
     return result.rows[0].cnt === 0;
   } catch {
-    return false;
+    return true;
   }
 }
 
