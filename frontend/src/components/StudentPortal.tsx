@@ -358,6 +358,85 @@ function NotificationPreferences() {
   );
 }
 
+function ContactEmailOverride() {
+  const [contactEmail, setContactEmail] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    api.getStudentProfile()
+      .then((r) => {
+        const p = r.profile as Record<string, unknown>;
+        setContactEmail((p.contact_email as string | null) ?? '');
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const save = async () => {
+    setErr('');
+    setSaving(true);
+    try {
+      const value = contactEmail.trim() || null;
+      await api.setContactEmail(value);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Could not save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
+      <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Notification delivery email</div>
+      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14, lineHeight: 1.45 }}>
+        All lesson confirmation and cancellation emails are sent here. Leave blank to use your login email.
+      </div>
+      {loading ? <div style={{ color: '#94a3b8', fontSize: 13 }}>Loading...</div> : (
+        <>
+          <label style={{ display: 'block', marginBottom: 12 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Notification email (optional)</span>
+            <input
+              type="email"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              placeholder="e.g. yourname@gmail.com"
+              autoComplete="email"
+              style={{
+                display: 'block',
+                width: '100%',
+                marginTop: 4,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #cbd5e1',
+                fontSize: 14,
+                boxSizing: 'border-box' as const,
+              }}
+            />
+          </label>
+          {err && (
+            <div style={{ marginBottom: 10, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#b91c1c' }}>
+              {err}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.75 : 1 }}
+          >
+            {saved ? '✓ Saved' : saving ? 'Saving...' : 'Save notification email'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function GraduationCountdown({ progress, avgLessonPrice, flightsLast30Days }: {
   progress: Progress;
   avgLessonPrice: number;
@@ -1336,8 +1415,9 @@ export default function StudentPortal() {
           <div>
             <h2 style={styles.requestTitle}>Account</h2>
             <p style={{ fontSize: 13, color: '#64748b', marginTop: 0, marginBottom: 16, maxWidth: 520 }}>
-              Update the email your school uses for notifications. Changing email also changes how you sign in.
+              Manage your contact information and notification preferences.
             </p>
+            <ContactEmailOverride />
             <AccountContact />
             <NotificationPreferences />
           </div>

@@ -53,7 +53,7 @@ router.get('/profile', async (req: Request, res: Response) => {
     const userId = req.user!.sub;
     const operatorId = req.user!.operatorId;
     const profileResult = await query(
-      `SELECT sp.*, u.name, u.email, o.name AS school_name, o.school_type
+      `SELECT sp.*, u.name, u.email, u.contact_email, o.name AS school_name, o.school_type
        FROM student_profiles sp
        JOIN users u ON u.id = sp.user_id
        JOIN operators o ON o.id = sp.operator_id
@@ -995,6 +995,23 @@ router.get('/notification-prefs', async (req: Request, res: Response) => {
     const row = result.rows[0];
     res.json({ sms: row.notification_sms ?? true, email: row.notification_email ?? true, in_app: row.notification_in_app ?? true });
   } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /api/students/contact-email — student sets a separate delivery address for notifications
+router.patch('/contact-email', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    const { contact_email } = req.body as { contact_email?: string };
+    const value = contact_email?.trim() || null;
+    await query(`UPDATE users SET contact_email = $1 WHERE id = $2`, [value, userId]);
+    await AuditService.log(req.user!.operatorId, 'student_contact_email_updated', `student:${userId}`, undefined, {
+      contact_email: value,
+    });
+    res.json({ ok: true, contact_email: value });
+  } catch (error) {
+    console.error('Update contact email error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -336,4 +336,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+
+  setContactEmail: (contact_email: string | null) =>
+    request<{ ok: boolean; contact_email: string | null }>('/students/contact-email', {
+      method: 'PATCH',
+      body: JSON.stringify({ contact_email }),
+    }),
 };

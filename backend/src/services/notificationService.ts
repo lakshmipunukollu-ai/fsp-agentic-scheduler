@@ -198,7 +198,8 @@ export class NotificationService {
   }): Promise<void> {
     const { operatorId, userId, studentName, subject, html, context } = opts;
     const r = await query(
-      `SELECT u.email, COALESCE(sp.notification_email, true) AS notification_email
+      `SELECT COALESCE(u.contact_email, u.email) AS email,
+              COALESCE(sp.notification_email, true) AS notification_email
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.id = $1`,
