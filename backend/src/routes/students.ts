@@ -5,7 +5,7 @@ import { authenticate, requireRole } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { query } from '../db/connection';
 import { AvailabilityWindow } from '../types';
-import { assessWeatherForLesson } from '../services/weatherService';
+import { assessWeatherForDates } from '../services/weatherService';
 import { broadcastToOperator } from '../services/sseService';
 import { NotificationService } from '../services/notificationService';
 import { AuditService } from '../services/auditService';
@@ -400,10 +400,11 @@ router.post('/request-schedule', async (req: Request, res: Response) => {
     );
     const availabilityId = availResult.rows[0].id;
 
-    const weatherChecks = await Promise.all(windows.map((w: AvailabilityWindow) => assessWeatherForLesson(w.date)));
-    const windowsWithWeather = windows.map((w: AvailabilityWindow, i: number) => ({
-      ...w, weatherOk: weatherChecks[i].pass, weatherNote: weatherChecks[i].condition,
-    }));
+    const weatherMap = await assessWeatherForDates(windows.map((w: AvailabilityWindow) => w.date));
+    const windowsWithWeather = windows.map((w: AvailabilityWindow) => {
+      const wx = weatherMap.get(w.date);
+      return { ...w, weatherOk: wx?.pass ?? true, weatherNote: wx?.condition ?? 'VFR' };
+    });
 
     const windowsText = windowsWithWeather.map((w: any) =>
       `  - ${w.date} from ${w.startTime} to ${w.endTime} | Weather: ${w.weatherOk ? '✅ VFR' : '⚠ ' + w.weatherNote}`
