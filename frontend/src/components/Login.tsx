@@ -7,7 +7,7 @@ import './Login.css';
 const DEMO_ACCOUNTS = [
   { role: 'Admin', email: 'admin@skyhigh.com', password: 'admin123', color: '#a78bfa', icon: '⚙', desc: 'Full dashboard + Students tab' },
   { role: 'Dispatcher', email: 'dispatcher@skyhigh.com', password: 'scheduler123', color: '#38bdf8', icon: '📋', desc: 'Approval queue + agent' },
-  { role: 'Student — PPL (37h)', email: 'rpspriya@gmail.com', password: 'student123', color: '#34d399', icon: '✈', desc: 'Private Pilot, 53% complete' },
+  { role: 'Student — PPL (37h)', email: 'emma@skyhigh.com', password: 'student123', color: '#34d399', icon: '✈', desc: 'Private Pilot, 53% complete' },
   { role: 'Student — CPL (112h)', email: 'carlos@skyhigh.com', password: 'student123', color: '#fb923c', icon: '🎓', desc: 'Commercial Pilot, 45% complete' },
 ] as const;
 
