@@ -14,6 +14,22 @@ CREATE TABLE IF NOT EXISTS operators (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Rename hashed_password → password_hash if the old column name was used
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'hashed_password')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'password_hash')
+  THEN
+    ALTER TABLE users RENAME COLUMN hashed_password TO password_hash;
+  ELSIF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'hashed_password')
+     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'password_hash')
+  THEN
+    -- Both columns exist: copy data from old to new, then drop old
+    UPDATE users SET password_hash = hashed_password WHERE password_hash IS NULL OR password_hash = '';
+    ALTER TABLE users DROP COLUMN hashed_password;
+  END IF;
+END $$;
+
 -- If users table exists but lacks operator_id, add it and backfill
 DO $$
 DECLARE
@@ -22,7 +38,6 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users')
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'operator_id')
   THEN
-    -- Ensure a default operator row exists
     INSERT INTO operators (fsp_operator_id, name)
     VALUES ('FSP-001', 'SkyHigh Flight School')
     ON CONFLICT (fsp_operator_id) DO NOTHING;
@@ -33,7 +48,6 @@ BEGIN
     UPDATE users SET operator_id = default_op_id;
     ALTER TABLE users ALTER COLUMN operator_id SET NOT NULL;
 
-    -- Add FK only if it doesn't already exist
     IF NOT EXISTS (
       SELECT 1 FROM pg_constraint WHERE conname = 'users_operator_id_fkey'
     ) THEN
@@ -49,7 +63,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'scheduler';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
--- Backfill NULLs with sensible defaults so NOT NULL constraints can be added later
+-- Backfill NULLs with sensible defaults
 UPDATE users SET password_hash = '' WHERE password_hash IS NULL;
 UPDATE users SET name = email WHERE name IS NULL;
 UPDATE users SET role = 'scheduler' WHERE role IS NULL;
