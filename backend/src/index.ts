@@ -175,17 +175,52 @@ if (config.nodeEnv === 'production' && fs.existsSync(publicDir)) {
 // Error handler (must be last)
 app.use(errorHandler);
 
+async function runMigrationsAndSeed() {
+  const { getPool } = await import('./db/connection');
+  const pool = getPool();
+
+  // Auto-migrate
+  const migrationsDir = path.join(__dirname, 'db', 'migrations');
+  if (fs.existsSync(migrationsDir)) {
+    const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+    for (const file of files) {
+      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
+      console.log(`[migrate] Running: ${file}`);
+      await pool.query(sql);
+    }
+    console.log(`[migrate] ${files.length} migration(s) applied`);
+  } else {
+    console.log('[migrate] No migrations directory found, skipping');
+  }
+
+  // Auto-seed when DB is empty
+  const { needsSeed, seedDatabase } = await import('./db/seed');
+  if (await needsSeed(pool)) {
+    console.log('[seed] Empty database detected — seeding demo data...');
+    await seedDatabase(pool);
+  } else {
+    console.log('[seed] Database already has data, skipping auto-seed');
+  }
+}
+
 // Start server (only when not in test mode)
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(config.port, () => {
-    console.log(`FSP Agentic Scheduler API running on port ${config.port}`);
-    console.log(`Health check: http://localhost:${config.port}/health`);
-    const logOnly =
-      process.env.NOTIFICATIONS_LOG_ONLY === 'true' || process.env.NOTIFICATIONS_LOG_ONLY === '1';
-    if (logOnly) {
-      console.log('[Email] NOTIFICATIONS_LOG_ONLY — email is logged only, not sent');
-    }
-  });
+  runMigrationsAndSeed()
+    .then(() => {
+      app.listen(config.port, () => {
+        console.log(`FSP Agentic Scheduler API running on port ${config.port}`);
+        console.log(`Health check: http://localhost:${config.port}/health`);
+        const logOnly =
+          process.env.NOTIFICATIONS_LOG_ONLY === 'true' || process.env.NOTIFICATIONS_LOG_ONLY === '1';
+        if (logOnly) {
+          console.log('[Email] NOTIFICATIONS_LOG_ONLY — email is logged only, not sent');
+        }
+      });
+    })
+    .catch(err => {
+      console.error('[startup] Migration/seed failed:', err);
+      process.exit(1);
+    });
 }
 
 export default app;

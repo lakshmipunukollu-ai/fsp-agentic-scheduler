@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { getPool, closePool } from './connection';
 import { DEFAULT_OPERATOR_CONFIG, DEFAULT_FEATURE_FLAGS } from '../types';
+import { Pool } from 'pg';
 
 function daysAgo(n: number): string {
   const d = new Date();
@@ -15,9 +16,7 @@ function hoursFromNow(n: number): string {
   return d.toISOString();
 }
 
-async function seed() {
-  const pool = getPool();
-
+export async function seedDatabase(pool: Pool) {
   // Wipe existing data in correct foreign key order
   await pool.query(`DELETE FROM notifications`);
   await pool.query(`DELETE FROM scheduled_lessons`);
@@ -182,21 +181,16 @@ async function seed() {
   }
 
   // --- STUDENT USERS & PROFILES ---
-  // 11 students with a wide spread of pace/risk/license to make all analysis panels compelling
   const students = [
-    // On-track / high frequency
     { name: 'Emma Wilson',      email: 'emma@skyhigh.com',      password: 'student123', license: 'PPL', hoursLogged: 37,  hoursRequired: 70,  daysAgoStart: 45,  flightsLast30: 12, lastFlightDaysAgo: 2  },
     { name: 'Aisha Patel',      email: 'aisha@skyhigh.com',     password: 'student123', license: 'PPL', hoursLogged: 52,  hoursRequired: 70,  daysAgoStart: 60,  flightsLast30: 10, lastFlightDaysAgo: 1  },
     { name: 'James Kowalski',   email: 'james@skyhigh.com',     password: 'student123', license: 'CPL', hoursLogged: 185, hoursRequired: 250, daysAgoStart: 180, flightsLast30: 9,  lastFlightDaysAgo: 3  },
-    // Behind pace — moderate risk
     { name: 'Carlos Rivera',    email: 'carlos@skyhigh.com',    password: 'student123', license: 'CPL', hoursLogged: 112, hoursRequired: 250, daysAgoStart: 120, flightsLast30: 5,  lastFlightDaysAgo: 9  },
     { name: 'Taylor Brooks',    email: 'taylor@skyhigh.com',    password: 'student123', license: 'IR',  hoursLogged: 45,  hoursRequired: 115, daysAgoStart: 90,  flightsLast30: 4,  lastFlightDaysAgo: 6  },
     { name: 'Priya Menon',      email: 'priya@skyhigh.com',     password: 'student123', license: 'PPL', hoursLogged: 22,  hoursRequired: 70,  daysAgoStart: 50,  flightsLast30: 3,  lastFlightDaysAgo: 8  },
-    // At risk — low frequency, idle 7-21 days
     { name: 'Sophie Chen',      email: 'sophie@skyhigh.com',    password: 'student123', license: 'IR',  hoursLogged: 28,  hoursRequired: 115, daysAgoStart: 60,  flightsLast30: 2,  lastFlightDaysAgo: 18 },
     { name: 'Derek Williams',   email: 'derek@skyhigh.com',     password: 'student123', license: 'PPL', hoursLogged: 15,  hoursRequired: 70,  daysAgoStart: 55,  flightsLast30: 1,  lastFlightDaysAgo: 14 },
     { name: 'Lena Fischer',     email: 'lena@skyhigh.com',      password: 'student123', license: 'CPL', hoursLogged: 78,  hoursRequired: 250, daysAgoStart: 95,  flightsLast30: 2,  lastFlightDaysAgo: 12 },
-    // High risk — very idle or just starting
     { name: 'Marcus Johnson',   email: 'marcus@skyhigh.com',    password: 'student123', license: 'PPL', hoursLogged: 8,   hoursRequired: 70,  daysAgoStart: 30,  flightsLast30: 0,  lastFlightDaysAgo: 30 },
     { name: 'Ryan Okafor',      email: 'ryan@skyhigh.com',      password: 'student123', license: 'PPL', hoursLogged: 5,   hoursRequired: 70,  daysAgoStart: 20,  flightsLast30: 0,  lastFlightDaysAgo: 22 },
   ];
@@ -243,20 +237,15 @@ async function seed() {
        s.flightsLast30, lastFlightDate.toISOString().split('T')[0]]
     ).catch(() => {});
 
-    // Add completed lessons anchored to lastFlightDaysAgo.
-    // Lessons within 30-day window are spread from lastFlightDaysAgo → lastFlightDaysAgo+28.
-    // Older history goes back further for total hours context.
     const olderLessons = Math.max(0, Math.floor(s.hoursLogged / 2) - s.flightsLast30);
     const allLessons = [
-      // In-window: spread s.flightsLast30 lessons across the window [lastFlightDaysAgo, 29]
       ...Array.from({ length: s.flightsLast30 }, (_, j) => {
-        const windowSize = Math.max(0, 29 - s.lastFlightDaysAgo); // how many days available before 30-day cutoff
+        const windowSize = Math.max(0, 29 - s.lastFlightDaysAgo);
         const spread = s.flightsLast30 > 1
           ? Math.round((j / (s.flightsLast30 - 1)) * windowSize)
           : 0;
         return { daysBack: s.lastFlightDaysAgo + spread, label: `Lesson ${j + 1}` };
       }),
-      // Older history: weekly lessons going further back
       ...Array.from({ length: olderLessons }, (_, j) => ({
         daysBack: 31 + j * 7,
         label: `Lesson ${s.flightsLast30 + j + 1}`,
@@ -309,11 +298,27 @@ async function seed() {
     );
   }
 
-  await closePool();
-  console.log('Seed data inserted: 15 suggestions across all states, 7 days of history.');
+  console.log('[seed] Demo data inserted: 15 suggestions, 11 students, lessons, and notifications.');
 }
 
-seed().catch(err => {
-  console.error('Seed failed:', err);
-  process.exit(1);
-});
+/** Check if seeding is needed — true when the suggestions table is empty */
+export async function needsSeed(pool: Pool): Promise<boolean> {
+  try {
+    const result = await pool.query('SELECT COUNT(*)::int AS cnt FROM suggestions');
+    return result.rows[0].cnt === 0;
+  } catch {
+    return false;
+  }
+}
+
+// CLI entrypoint: `npm run seed` still works
+if (require.main === module) {
+  const pool = getPool();
+  seedDatabase(pool)
+    .then(() => closePool())
+    .then(() => process.exit(0))
+    .catch(err => {
+      console.error('Seed failed:', err);
+      process.exit(1);
+    });
+}
