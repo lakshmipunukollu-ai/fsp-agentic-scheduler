@@ -1,4 +1,11 @@
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+function resolveApiBase(): string {
+  if (import.meta.env.VITE_API_URL) return `${import.meta.env.VITE_API_URL}/api`;
+  if (typeof window !== 'undefined' && window.location.hostname.includes('fsp-frontend-production')) {
+    return 'https://fsp-agentic-scheduler-production.up.railway.app/api';
+  }
+  return '/api';
+}
+const API_BASE = resolveApiBase();
 
 function getToken(): string | null {
   return localStorage.getItem('token');
