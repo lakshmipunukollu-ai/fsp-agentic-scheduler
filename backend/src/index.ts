@@ -1,3 +1,8 @@
+// Railway's network lacks IPv6 connectivity — force all DNS lookups to return IPv4 first.
+// This must be at the very top before any network calls (SMTP, Anthropic, etc.).
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
