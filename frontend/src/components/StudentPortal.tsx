@@ -940,6 +940,12 @@ export default function StudentPortal() {
       });
     }, 700);
 
+    const timeoutId = setTimeout(() => {
+      clearInterval(stepInterval);
+      setProcessing(false);
+      setRequestError('Schedule generation is taking longer than expected. Please try again.');
+    }, 35000);
+
     try {
       const result = await api.requestSchedule({
         windows,
@@ -948,12 +954,14 @@ export default function StudentPortal() {
         horizonDays,
         rangeStartOffset,
       });
+      clearTimeout(timeoutId);
       clearInterval(stepInterval);
       setProcessingStep(PROCESSING_STEPS.length - 1);
       setAiSchedule(result.schedule as AIScheduleSlot[]);
       setLastRequestId(result.request.id);
       await loadProfile();
     } catch (err: unknown) {
+      clearTimeout(timeoutId);
       clearInterval(stepInterval);
       setRequestError(err instanceof Error ? err.message : 'Failed to generate schedule');
     } finally {

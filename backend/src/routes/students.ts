@@ -433,10 +433,10 @@ Return ONLY valid JSON array:
   "weatherCondition": "<weather note>"
 }]`;
 
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514', max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const message = await anthropic.messages.create(
+      { model: 'claude-haiku-4-20250514', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] },
+      { timeout: 25000 }
+    );
     const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
     let aiSchedule;
     try {
