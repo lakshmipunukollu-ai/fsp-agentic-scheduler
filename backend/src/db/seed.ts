@@ -303,10 +303,10 @@ export async function seedDatabase(pool: Pool) {
   console.log('[seed] Demo data inserted: 15 suggestions, 11 students, lessons, and notifications.');
 }
 
-/** Check if seeding is needed — true when the operators table is empty or missing */
+/** Seed is needed when the demo data (suggestions) hasn't been loaded yet */
 export async function needsSeed(pool: Pool): Promise<boolean> {
   try {
-    const result = await pool.query('SELECT COUNT(*)::int AS cnt FROM operators');
+    const result = await pool.query('SELECT COUNT(*)::int AS cnt FROM suggestions');
     return result.rows[0].cnt === 0;
   } catch {
     return true;
